@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
+    Keyboard,
     Linking,
     StyleSheet,
     Text,
@@ -124,6 +125,7 @@ export default function EventScreen() {
           refreshing={refreshing}
           onRefresh={() => fetchEvents(true)}
           contentContainerStyle={{ paddingBottom: 80 }}
+          onScrollBeginDrag={() => Keyboard.dismiss()}
         />
       )}
     </View>
