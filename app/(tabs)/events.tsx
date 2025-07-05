@@ -7,20 +7,22 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    View
+    View,
 } from 'react-native';
 
 export default function EventScreen() {
   const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(true);     // Initial page load only
-  const [refreshing, setRefreshing] = useState(false); // For pull-to-refresh only
+  const [loading, setLoading] = useState(false); // unified loading state for initial load
+  const [refreshing, setRefreshing] = useState(false); // for pull-to-refresh only
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
 
   const fetchEvents = useCallback(async (isRefresh = false) => {
     setError(null);
     if (!isRefresh) {
-      setLoading(true);  // Only set loading for initial load, not refresh
+      setLoading(true);
+    } else {
+      setRefreshing(true);
     }
 
     try {
@@ -33,54 +35,21 @@ export default function EventScreen() {
       setError('Failed to load events.');
       console.error(err);
     } finally {
-      if (isRefresh) {
-        setRefreshing(false);
-      } else {
-        setLoading(false);
-      }
+      setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchEvents(false);  // initial load
+    fetchEvents(false);
   }, [fetchEvents]);
-
-  if (loading) {
-    // Show full-screen loader ONLY on initial load
-    return (
-      <View style={styles.container}>
-        <ActivityIndicator size="large" color="#fff" />
-      </View>
-    );
-  }
-
-  if (error) {
-    // Show error UI (no special refreshing handling needed here)
-    return (
-      <View style={styles.container}>
-        <Text style={styles.errorText}>{error}</Text>
-      </View>
-    );
-  }
-
-const filteredEvents = events
-  .filter(event =>
-    event.name.toLowerCase().includes(search.toLowerCase())
-  )
-  .sort((a, b) => {
-    const dateA = new Date(a.start_datetime);
-    const dateB = new Date(b.start_datetime);
-    return dateA - dateB;
-  });
 
   // Helper to build a fallback address if formatted_address is missing
   const getAddress = (address) => {
     if (!address) return null;
 
-    // Use formatted_address if available
     if (address.formatted_address) return address.formatted_address;
 
-    // Otherwise, build from parts, filtering out empty/null
     const parts = [
       address.name,
       address.street_address,
@@ -93,30 +62,9 @@ const filteredEvents = events
     return parts.length ? parts.join(', ') : null;
   };
 
-  const renderItem = ({ item }) => {
-    const date = item.start_datetime
-      ? new Date(item.start_datetime).toLocaleDateString()
-      : 'No date';
-
-    const addressText = getAddress(item.address);
-
-    return (
-      <TouchableOpacity
-        style={styles.eventContainer}
-        onPress={() => {
-          if (item.metadata?.event_website) {
-            Linking.openURL(item.metadata.event_website);
-          }
-        }}
-      >
-        <Text style={styles.eventName}>{item.name}</Text>
-        <Text style={styles.eventDate}>{date}</Text>
-        {addressText ? (
-          <Text style={styles.eventAddress}>{addressText}</Text>
-        ) : null}
-      </TouchableOpacity>
-    );
-  };
+  const filteredEvents = events
+    .filter((event) => event.name.toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => new Date(a.start_datetime) - new Date(b.start_datetime));
 
   return (
     <View style={styles.container}>
@@ -127,20 +75,57 @@ const filteredEvents = events
         value={search}
         onChangeText={setSearch}
       />
-      <FlatList
-        data={filteredEvents}
-        keyExtractor={(item) => item.guid}
-        renderItem={renderItem}
-        ListEmptyComponent={
-          <Text style={styles.noResults}>No events found.</Text>
-        }
-        refreshing={refreshing}
-        onRefresh={() => {
-          setRefreshing(true);
-          fetchEvents(true);  // pass true to indicate refresh
-        }}
-        contentContainerStyle={{ paddingBottom: 80 }}
-      />
+
+      {error && (
+        <TouchableOpacity
+          style={{ marginBottom: 16 }}
+          onPress={() => fetchEvents(false)}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.errorText, { textAlign: 'center' }]}>
+            {error} Tap to retry.
+          </Text>
+        </TouchableOpacity>
+      )}
+
+      {loading && events.length === 0 ? (
+        <ActivityIndicator size="large" color="#fff" />
+      ) : (
+        <FlatList
+          data={filteredEvents}
+          keyExtractor={(item) => item.guid}
+          renderItem={({ item }) => {
+            const date = item.start_datetime
+              ? new Date(item.start_datetime).toLocaleDateString()
+              : 'No date';
+
+            const addressText = getAddress(item.address);
+
+            return (
+              <TouchableOpacity
+                style={styles.eventContainer}
+                onPress={() => {
+                  if (item.metadata?.event_website) {
+                    Linking.openURL(item.metadata.event_website);
+                  }
+                }}
+              >
+                <Text style={styles.eventName}>{item.name}</Text>
+                <Text style={styles.eventDate}>{date}</Text>
+                {addressText ? (
+                  <Text style={styles.eventAddress}>{addressText}</Text>
+                ) : null}
+              </TouchableOpacity>
+            );
+          }}
+          ListEmptyComponent={
+            <Text style={styles.noResults}>No events found.</Text>
+          }
+          refreshing={refreshing}
+          onRefresh={() => fetchEvents(true)}
+          contentContainerStyle={{ paddingBottom: 80 }}
+        />
+      )}
     </View>
   );
 }
