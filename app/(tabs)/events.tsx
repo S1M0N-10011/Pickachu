@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, Linking, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function EventScreen() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     fetch('https://op-core.pokemon.com/api/v2/event_locator/search?latitude=52.3676&longitude=4.9041&distance=10')
@@ -35,6 +36,11 @@ export default function EventScreen() {
     );
   }
 
+  // Filter events by search text
+  const filteredEvents = events.filter(event =>
+    event.name.toLowerCase().includes(search.toLowerCase())
+  );
+
   const renderItem = ({ item }) => {
     const date = new Date(item.start_datetime).toLocaleDateString();
     return (
@@ -55,11 +61,18 @@ export default function EventScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Events</Text>
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Search events..."
+        placeholderTextColor="#888"
+        value={search}
+        onChangeText={setSearch}
+      />
       <FlatList
-        data={events}
+        data={filteredEvents}
         keyExtractor={(item) => item.guid}
         renderItem={renderItem}
+        ListEmptyComponent={<Text style={styles.noResults}>No events found.</Text>}
         contentContainerStyle={{ paddingBottom: 80 }}
       />
     </View>
@@ -73,12 +86,14 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 80,
   },
-  title: {
+  searchInput: {
+    height: 40,
+    backgroundColor: '#2a2e33',
+    borderRadius: 8,
+    paddingHorizontal: 12,
     color: '#fff',
-    fontSize: 24,
-    fontWeight: '600',
     marginBottom: 16,
-    alignSelf: 'center',
+    fontSize: 16,
   },
   eventContainer: {
     backgroundColor: '#2a2e33',
@@ -103,5 +118,11 @@ const styles = StyleSheet.create({
   errorText: {
     color: 'red',
     fontSize: 18,
+  },
+  noResults: {
+    color: '#888',
+    fontSize: 18,
+    marginTop: 20,
+    alignSelf: 'center',
   },
 });
