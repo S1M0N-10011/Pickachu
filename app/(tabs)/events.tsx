@@ -20,9 +20,9 @@ export default function EventScreen() {
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
 
-  const [latitude, setLatitude] = useState('52.1326');
-  const [longitude, setLongitude] = useState('5.2913');
-  const [distance, setDistance] = useState('100');
+  const [latitude, setLatitude] = useState('52.3676');
+  const [longitude, setLongitude] = useState('4.9041');
+  const [distance, setDistance] = useState('10');
 
   const [modalVisible, setModalVisible] = useState(false);
 
@@ -162,7 +162,7 @@ export default function EventScreen() {
         />
       )}
 
-      {/* Modal */}
+      {/* Bottom Sheet Modal */}
       <Modal
         visible={modalVisible}
         transparent
@@ -171,6 +171,7 @@ export default function EventScreen() {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
+            <View style={styles.modalHandle} />
             <Text style={styles.modalTitle}>Search Parameters</Text>
 
             <Text style={styles.label}>Latitude</Text>
@@ -193,7 +194,7 @@ export default function EventScreen() {
               placeholderTextColor="#888"
             />
 
-            <Text style={styles.label}>Distance (mi)</Text>
+            <Text style={styles.label}>Distance (km)</Text>
             <TextInput
               style={styles.modalInput}
               keyboardType="numeric"
@@ -205,14 +206,13 @@ export default function EventScreen() {
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={[styles.modalButtonCancel]}
+                style={styles.modalButtonCancel}
                 onPress={() => setModalVisible(false)}
               >
                 <Text style={styles.modalButtonCancelText}>Cancel</Text>
               </TouchableOpacity>
-
               <TouchableOpacity
-                style={[styles.modalButtonApply]}
+                style={styles.modalButtonApply}
                 onPress={applyParams}
               >
                 <Text style={styles.modalButtonApplyText}>Apply</Text>
@@ -284,16 +284,26 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
 
+  // Bottom sheet modal styles
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
+    justifyContent: 'flex-end',
   },
   modalContent: {
     backgroundColor: '#2a2e33',
-    borderRadius: 12,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
     padding: 24,
+    height: '80%',
+  },
+  modalHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: '#666',
+    borderRadius: 2,
+    alignSelf: 'center',
+    marginBottom: 12,
   },
   modalTitle: {
     fontSize: 20,
