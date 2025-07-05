@@ -1,4 +1,5 @@
 import { useLocalSearchParams } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import React from 'react';
 import {
   Linking,
@@ -9,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+
 
 export default function EventDetailsScreen() {
   const {
@@ -23,7 +25,7 @@ export default function EventDetailsScreen() {
 
   const openLink = async (url: string) => {
     if (await Linking.canOpenURL(url)) {
-      Linking.openURL(url);
+      WebBrowser.openBrowserAsync(url);
     }
   };
 
