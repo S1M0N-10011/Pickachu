@@ -18,7 +18,7 @@ export default function MapPickerScreen() {
 
   const initialLat = parseFloat(params.initialLat as string) || 52.1326;
   const initialLng = parseFloat(params.initialLng as string) || 5.2913;
-  const initialRadiusMiles = parseFloat(params.initialRadius as string) || 100;
+  const initialRadiusKm = parseFloat(params.initialRadius as string) || 100;
 
   const [center, setCenter] = useState({
     latitude: initialLat,
@@ -32,20 +32,15 @@ export default function MapPickerScreen() {
     longitudeDelta: 0.2,
   });
 
-  // Store radius in kilometers for UI, convert to meters for map circle
-  const [radiusKm, setRadiusKm] = useState(initialRadiusMiles * 1.60934);
+  const [radiusKm, setRadiusKm] = useState(initialRadiusKm);
   const [locationLoading, setLocationLoading] = useState(false);
 
-  // Helper functions for conversions
-  const kmToMiles = (km: number) => km / 1.60934;
   const kmToMeters = (km: number) => km * 1000;
-  const milesToKm = (miles: number) => miles * 1.60934;
 
   const requestLocationPermission = async () => {
     try {
       setLocationLoading(true);
       
-      // Check if location services are enabled
       const enabled = await Location.hasServicesEnabledAsync();
       if (!enabled) {
         Alert.alert(
@@ -57,7 +52,6 @@ export default function MapPickerScreen() {
         return;
       }
 
-      // Request foreground permissions
       const { status } = await Location.requestForegroundPermissionsAsync();
       
       if (status !== 'granted') {
@@ -70,7 +64,6 @@ export default function MapPickerScreen() {
         return;
       }
 
-      // Get current location
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
@@ -110,14 +103,12 @@ export default function MapPickerScreen() {
   };
 
   const onApply = () => {
-    const radiusInMiles = Math.round(kmToMiles(radiusKm));
-    
     router.replace({
       pathname: '/(tabs)/events',
       params: {
         latitude: center.latitude.toFixed(6),
         longitude: center.longitude.toFixed(6),
-        distance: radiusInMiles.toString(),
+        distance: Math.round(radiusKm).toString(),
       },
     });
   };

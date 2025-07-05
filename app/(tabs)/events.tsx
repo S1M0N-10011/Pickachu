@@ -32,7 +32,6 @@ export default function EventScreen() {
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
 
-  // Location state - will be set from cache or params
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
   const [distance, setDistance] = useState('');
@@ -40,7 +39,6 @@ export default function EventScreen() {
   const hasFetchedRef = useRef(false);
   const prevParamsRef = useRef({ latitude: '', longitude: '', distance: '' });
 
-  // Load cached location on component mount
   useEffect(() => {
     loadCachedLocation();
   }, []);
@@ -55,21 +53,19 @@ export default function EventScreen() {
         setDistance(parsed.distance);
         console.log('Loaded cached location:', parsed);
       } else {
-        // No cached location, set default Netherlands coordinates and cache them
         const defaultLat = '52.1326';
         const defaultLng = '5.2913';
         const defaultDist = '50';
-        
+
         setLatitude(defaultLat);
         setLongitude(defaultLng);
         setDistance(defaultDist);
-        
+
         await cacheLocation(defaultLat, defaultLng, defaultDist);
         console.log('No cached location, using and caching default coordinates');
       }
     } catch (error) {
       console.error('Error loading cached location:', error);
-      // Fallback to default if cache fails
       setLatitude('52.1326');
       setLongitude('5.2913');
       setDistance('50');
@@ -91,7 +87,6 @@ export default function EventScreen() {
     }
   };
 
-  // Helper function to get current cached location
   const getCurrentCachedLocation = useCallback(async () => {
     try {
       const cachedData = await AsyncStorage.getItem(LOCATION_CACHE_KEY);
@@ -106,7 +101,6 @@ export default function EventScreen() {
     } catch (error) {
       console.error('Error getting cached location:', error);
     }
-    // Fallback to current state
     return { latitude, longitude, distance };
   }, [latitude, longitude, distance]);
 
@@ -117,7 +111,6 @@ export default function EventScreen() {
       customLng?: string,
       customDist?: string
     ) => {
-      // If refreshing and no custom values provided, get from cache
       let lat = customLat || latitude;
       let lng = customLng || longitude;
       let dist = customDist || distance;
@@ -127,8 +120,7 @@ export default function EventScreen() {
         lat = cachedLocation.latitude;
         lng = cachedLocation.longitude;
         dist = cachedLocation.distance;
-        
-        // Update state with cached values if they're different
+
         if (lat !== latitude || lng !== longitude || dist !== distance) {
           setLatitude(lat);
           setLongitude(lng);
@@ -136,7 +128,6 @@ export default function EventScreen() {
         }
       }
 
-      // Don't fetch if we don't have coordinates yet
       if (!lat || !lng || !dist) {
         return;
       }
@@ -150,7 +141,8 @@ export default function EventScreen() {
       }
 
       try {
-        const url = `https://op-core.pokemon.com/api/v2/event_locator/search?latitude=${lat}&longitude=${lng}&distance=${dist}`;
+        const distMiles = Math.round(parseFloat(dist) / 1.60934);
+        const url = `https://op-core.pokemon.com/api/v2/event_locator/search?latitude=${lat}&longitude=${lng}&distance=${distMiles}`;
         const response = await fetch(url);
         const contentType = response.headers.get('content-type');
 
@@ -164,10 +156,8 @@ export default function EventScreen() {
 
         const json = await response.json();
         setEvents(json.activities || []);
-        
-        // Cache the location when events are successfully fetched
+
         await cacheLocation(lat, lng, dist);
-        
       } catch (err) {
         setError('Failed to load events.');
         console.error('Event fetch error:', err.message);
@@ -192,12 +182,11 @@ export default function EventScreen() {
       setLatitude(lat);
       setLongitude(lng);
       setDistance(dist);
-      
-      // Clear search when location changes
+
       if (hasChanged && hasFetchedRef.current) {
         setSearch('');
       }
-      
+
       fetchEvents(false, lat, lng, dist);
 
       prevParamsRef.current = { latitude: lat, longitude: lng, distance: dist };
@@ -225,10 +214,8 @@ export default function EventScreen() {
 
   const handleLocationButtonPress = async () => {
     Keyboard.dismiss();
-    
-    // Get the most current cached location
     const currentLocation = await getCurrentCachedLocation();
-    
+
     router.push({
       pathname: '/map-picker',
       params: {
@@ -249,12 +236,7 @@ export default function EventScreen() {
           value={search}
           onChangeText={setSearch}
         />
-        <TouchableOpacity
-          style={styles.searchButton}
-          onPress={() => {
-            // Placeholder for future sort functionality
-          }}
-        >
+        <TouchableOpacity style={styles.searchButton}>
           <Feather name="sliders" size={24} color="#ffd33d" />
         </TouchableOpacity>
         <TouchableOpacity
@@ -290,11 +272,6 @@ export default function EventScreen() {
               <TouchableOpacity
                 style={styles.eventContainer}
                 onPress={() => {
-                  const addressText = getAddress(item.address);
-                  const date = item.start_datetime
-                    ? new Date(item.start_datetime).toLocaleDateString()
-                    : 'No date';
-
                   router.push({
                     pathname: '/event-details',
                     params: {
