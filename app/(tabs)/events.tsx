@@ -3,35 +3,39 @@ import { ActivityIndicator, FlatList, Linking, StyleSheet, Text, TextInput, Touc
 
 export default function EventScreen() {
   const [events, setEvents] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);     // Initial page load only
+  const [refreshing, setRefreshing] = useState(false); // For pull-to-refresh only
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
 
-  const fetchEvents = useCallback(() => {
+  const fetchEvents = useCallback(async (isRefresh = false) => {
     setError(null);
-    if (!refreshing) setLoading(true);
+    if (!isRefresh) {
+      setLoading(true);  // Only set loading for initial load, not refresh
+    }
 
-    return fetch('https://op-core.pokemon.com/api/v2/event_locator/search?latitude=52.3676&longitude=4.9041&distance=10')
-      .then((response) => response.json())
-      .then((json) => {
-        setEvents(json.activities || []);
-      })
-      .catch((err) => {
-        setError('Failed to load events.');
-        console.error(err);
-      })
-      .finally(() => {
-        setLoading(false);
+    try {
+      const response = await fetch('https://op-core.pokemon.com/api/v2/event_locator/search?latitude=52.3676&longitude=4.9041&distance=10');
+      const json = await response.json();
+      setEvents(json.activities || []);
+    } catch (err) {
+      setError('Failed to load events.');
+      console.error(err);
+    } finally {
+      if (isRefresh) {
         setRefreshing(false);
-      });
-  }, [refreshing]);
+      } else {
+        setLoading(false);
+      }
+    }
+  }, []);
 
   useEffect(() => {
-    fetchEvents();
+    fetchEvents(false);  // initial load
   }, [fetchEvents]);
 
-  if (loading && !refreshing) {
+  if (loading) {
+    // Show full-screen loader ONLY on initial load
     return (
       <View style={styles.container}>
         <ActivityIndicator size="large" color="#fff" />
@@ -39,7 +43,8 @@ export default function EventScreen() {
     );
   }
 
-  if (error && !refreshing) {
+  if (error) {
+    // Show error UI (no special refreshing handling needed here)
     return (
       <View style={styles.container}>
         <Text style={styles.errorText}>{error}</Text>
@@ -86,7 +91,7 @@ export default function EventScreen() {
         refreshing={refreshing}
         onRefresh={() => {
           setRefreshing(true);
-          fetchEvents();
+          fetchEvents(true);  // pass true to indicate refresh
         }}
         contentContainerStyle={{ paddingBottom: 80 }}
       />
