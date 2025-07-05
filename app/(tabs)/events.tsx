@@ -1,16 +1,16 @@
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import * as WebBrowser from 'expo-web-browser';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
   Keyboard,
-  Linking,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
 
 export default function EventScreen() {
@@ -166,7 +166,7 @@ export default function EventScreen() {
                 style={styles.eventContainer}
                 onPress={() => {
                   if (item.metadata?.event_website) {
-                    Linking.openURL(item.metadata.event_website);
+                    WebBrowser.openBrowserAsync(item.metadata.event_website);
                   }
                 }}
               >
