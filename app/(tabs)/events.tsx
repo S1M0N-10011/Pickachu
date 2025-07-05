@@ -1,14 +1,18 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, FlatList, Linking, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 export default function EventScreen() {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    fetch('https://op-core.pokemon.com/api/v2/event_locator/search?latitude=52.3676&longitude=4.9041&distance=10')
+  const fetchEvents = useCallback(() => {
+    setError(null);
+    if (!refreshing) setLoading(true);
+
+    return fetch('https://op-core.pokemon.com/api/v2/event_locator/search?latitude=52.3676&longitude=4.9041&distance=10')
       .then((response) => response.json())
       .then((json) => {
         setEvents(json.activities || []);
@@ -17,10 +21,17 @@ export default function EventScreen() {
         setError('Failed to load events.');
         console.error(err);
       })
-      .finally(() => setLoading(false));
-  }, []);
+      .finally(() => {
+        setLoading(false);
+        setRefreshing(false);
+      });
+  }, [refreshing]);
 
-  if (loading) {
+  useEffect(() => {
+    fetchEvents();
+  }, [fetchEvents]);
+
+  if (loading && !refreshing) {
     return (
       <View style={styles.container}>
         <ActivityIndicator size="large" color="#fff" />
@@ -28,7 +39,7 @@ export default function EventScreen() {
     );
   }
 
-  if (error) {
+  if (error && !refreshing) {
     return (
       <View style={styles.container}>
         <Text style={styles.errorText}>{error}</Text>
@@ -36,7 +47,6 @@ export default function EventScreen() {
     );
   }
 
-  // Filter events by search text
   const filteredEvents = events.filter(event =>
     event.name.toLowerCase().includes(search.toLowerCase())
   );
@@ -73,6 +83,11 @@ export default function EventScreen() {
         keyExtractor={(item) => item.guid}
         renderItem={renderItem}
         ListEmptyComponent={<Text style={styles.noResults}>No events found.</Text>}
+        refreshing={refreshing}
+        onRefresh={() => {
+          setRefreshing(true);
+          fetchEvents();
+        }}
         contentContainerStyle={{ paddingBottom: 80 }}
       />
     </View>
