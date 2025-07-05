@@ -1,13 +1,12 @@
 import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Keyboard,
+  Modal,
   StyleSheet,
   Text,
   TextInput,
@@ -33,7 +32,8 @@ export default function EventScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
-  const [locationLoading, setLocationLoading] = useState(false);
+  const [sortModalVisible, setSortModalVisible] = useState(false);
+  const [sortBy, setSortBy] = useState('date'); // 'date', 'name', 'distance'
 
   // Default to Netherlands coordinates as fallback
   const [latitude, setLatitude] = useState('52.1326');
@@ -59,13 +59,11 @@ export default function EventScreen() {
         setDistance(parsed.distance);
         console.log('Loaded cached location:', parsed);
       } else {
-        // No cached location, prompt for permission
-        await requestLocationPermission();
+        // No cached location, use default Netherlands coordinates
+        console.log('No cached location, using default coordinates');
       }
     } catch (error) {
       console.error('Error loading cached location:', error);
-      // Fallback to requesting permission
-      await requestLocationPermission();
     }
   };
 
@@ -81,63 +79,6 @@ export default function EventScreen() {
       console.log('Cached location:', cacheData);
     } catch (error) {
       console.error('Error caching location:', error);
-    }
-  };
-
-  const requestLocationPermission = async () => {
-    try {
-      setLocationLoading(true);
-      
-      // Check if location services are enabled
-      const enabled = await Location.hasServicesEnabledAsync();
-      if (!enabled) {
-        Alert.alert(
-          'Location Services Disabled',
-          'Please enable location services to find events near you.',
-          [{ text: 'OK' }]
-        );
-        setLocationLoading(false);
-        return;
-      }
-
-      // Request foreground permissions
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      
-      if (status !== 'granted') {
-        Alert.alert(
-          'Location Permission Required',
-          'This app needs location access to find Pokemon TCG events near you. You can still use the app by manually selecting a location.',
-          [{ text: 'OK' }]
-        );
-        setLocationLoading(false);
-        return;
-      }
-
-      // Get current location
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.Balanced,
-      });
-
-      const newLat = location.coords.latitude.toFixed(6);
-      const newLng = location.coords.longitude.toFixed(6);
-
-      setLatitude(newLat);
-      setLongitude(newLng);
-      
-      // Cache the new location
-      await cacheLocation(newLat, newLng, distance);
-
-      console.log('Got user location:', { lat: newLat, lng: newLng });
-      
-    } catch (error) {
-      console.error('Error getting location:', error);
-      Alert.alert(
-        'Location Error',
-        'Could not get your current location. Using default location.',
-        [{ text: 'OK' }]
-      );
-    } finally {
-      setLocationLoading(false);
     }
   };
 
@@ -224,11 +165,19 @@ export default function EventScreen() {
     .filter((event) =>
       event.name.toLowerCase().includes(search.toLowerCase())
     )
-    .sort(
-      (a, b) =>
-        new Date(a.start_datetime).getTime() -
-        new Date(b.start_datetime).getTime()
-    );
+    .sort((a, b) => {
+      switch (sortBy) {
+        case 'name':
+          return a.name.localeCompare(b.name);
+        case 'distance':
+          // Note: You'd need to calculate distance if the API provides coordinates
+          // For now, just sort by name as fallback
+          return a.name.localeCompare(b.name);
+        case 'date':
+        default:
+          return new Date(a.start_datetime).getTime() - new Date(b.start_datetime).getTime();
+      }
+    });
 
   return (
     <View style={styles.container}>
@@ -243,6 +192,14 @@ export default function EventScreen() {
         <TouchableOpacity
           style={styles.searchButton}
           onPress={() => {
+            setSortModalVisible(true);
+          }}
+        >
+          <Feather name="sliders" size={24} color="#ffd33d" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.locationButton}
+          onPress={() => {
             Keyboard.dismiss();
             router.push({
               pathname: '/map-picker',
@@ -254,18 +211,7 @@ export default function EventScreen() {
             });
           }}
         >
-          <Feather name="sliders" size={24} color="#ffd33d" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.locationButton}
-          onPress={requestLocationPermission}
-          disabled={locationLoading}
-        >
-          {locationLoading ? (
-            <ActivityIndicator size="small" color="#ffd33d" />
-          ) : (
-            <Feather name="map-pin" size={24} color="#ffd33d" />
-          )}
+          <Feather name="map-pin" size={24} color="#ffd33d" />
         </TouchableOpacity>
       </View>
 
@@ -333,6 +279,67 @@ export default function EventScreen() {
           onScrollBeginDrag={() => Keyboard.dismiss()}
         />
       )}
+
+      {/* Sort Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={sortModalVisible}
+        onRequestClose={() => setSortModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Sort Events</Text>
+              <TouchableOpacity
+                onPress={() => setSortModalVisible(false)}
+                style={styles.closeButton}
+              >
+                <Feather name="x" size={24} color="#fff" />
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.sortOption, sortBy === 'date' && styles.sortOptionActive]}
+              onPress={() => {
+                setSortBy('date');
+                setSortModalVisible(false);
+              }}
+            >
+              <Feather name="calendar" size={20} color={sortBy === 'date' ? '#ffd33d' : '#fff'} />
+              <Text style={[styles.sortOptionText, sortBy === 'date' && styles.sortOptionTextActive]}>
+                Sort by Date
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.sortOption, sortBy === 'name' && styles.sortOptionActive]}
+              onPress={() => {
+                setSortBy('name');
+                setSortModalVisible(false);
+              }}
+            >
+              <Feather name="type" size={20} color={sortBy === 'name' ? '#ffd33d' : '#fff'} />
+              <Text style={[styles.sortOptionText, sortBy === 'name' && styles.sortOptionTextActive]}>
+                Sort by Name
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.sortOption, sortBy === 'distance' && styles.sortOptionActive]}
+              onPress={() => {
+                setSortBy('distance');
+                setSortModalVisible(false);
+              }}
+            >
+              <Feather name="navigation" size={20} color={sortBy === 'distance' ? '#ffd33d' : '#fff'} />
+              <Text style={[styles.sortOptionText, sortBy === 'distance' && styles.sortOptionTextActive]}>
+                Sort by Distance
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -412,5 +419,51 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginTop: 12,
     fontSize: 16,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    backgroundColor: '#2a2e33',
+    borderRadius: 12,
+    padding: 20,
+    width: '80%',
+    maxWidth: 300,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  closeButton: {
+    padding: 4,
+  },
+  sortOption: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  sortOptionActive: {
+    backgroundColor: '#1f2226',
+  },
+  sortOptionText: {
+    color: '#fff',
+    fontSize: 16,
+    marginLeft: 12,
+  },
+  sortOptionTextActive: {
+    color: '#ffd33d',
   },
 });

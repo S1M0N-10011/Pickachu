@@ -1,7 +1,10 @@
 import Slider from '@react-native-community/slider';
+import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -23,6 +26,63 @@ export default function MapPickerScreen() {
   });
 
   const [radius, setRadius] = useState(initialRadiusMiles * 1609.34); // meters
+  const [locationLoading, setLocationLoading] = useState(false);
+
+  const requestLocationPermission = async () => {
+    try {
+      setLocationLoading(true);
+      
+      // Check if location services are enabled
+      const enabled = await Location.hasServicesEnabledAsync();
+      if (!enabled) {
+        Alert.alert(
+          'Location Services Disabled',
+          'Please enable location services to find events near you.',
+          [{ text: 'OK' }]
+        );
+        setLocationLoading(false);
+        return;
+      }
+
+      // Request foreground permissions
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Location Permission Required',
+          'This app needs location access to find Pokemon TCG events near you. You can still use the app by manually selecting a location.',
+          [{ text: 'OK' }]
+        );
+        setLocationLoading(false);
+        return;
+      }
+
+      // Get current location
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      const newLat = location.coords.latitude;
+      const newLng = location.coords.longitude;
+
+      setCenter({
+        latitude: newLat,
+        longitude: newLng,
+      });
+
+      console.log('Got user location:', { lat: newLat, lng: newLng });
+      
+    } catch (error) {
+      console.error('Error getting location:', error);
+      Alert.alert(
+        'Location Error',
+        'Could not get your current location. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setLocationLoading(false);
+    }
+  };
 
   const onApply = () => {
     router.replace({
@@ -40,6 +100,11 @@ export default function MapPickerScreen() {
       <MapView
         style={styles.map}
         initialRegion={{
+          ...center,
+          latitudeDelta: 0.2,
+          longitudeDelta: 0.2,
+        }}
+        region={{
           ...center,
           latitudeDelta: 0.2,
           longitudeDelta: 0.2,
@@ -68,6 +133,19 @@ export default function MapPickerScreen() {
           onValueChange={setRadius}
           minimumTrackTintColor="#ffd33d"
         />
+        
+        <TouchableOpacity 
+          style={styles.locationButton} 
+          onPress={requestLocationPermission}
+          disabled={locationLoading}
+        >
+          {locationLoading ? (
+            <ActivityIndicator size="small" color="#25292e" />
+          ) : (
+            <Text style={styles.locationButtonText}>Reset to Your Location</Text>
+          )}
+        </TouchableOpacity>
+
         <TouchableOpacity style={styles.button} onPress={onApply}>
           <Text style={styles.buttonText}>Apply</Text>
         </TouchableOpacity>
@@ -92,6 +170,18 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     marginBottom: 8,
+  },
+  locationButton: {
+    backgroundColor: '#2a2e33',
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  locationButtonText: {
+    color: '#ffd33d',
+    fontSize: 16,
+    fontWeight: '600',
   },
   button: {
     backgroundColor: '#ffd33d',
