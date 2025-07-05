@@ -1,16 +1,16 @@
 import { Feather } from '@expo/vector-icons';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    FlatList,
-    Keyboard,
-    Linking,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  FlatList,
+  Keyboard,
+  Linking,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
 
 export default function EventScreen() {
@@ -27,46 +27,55 @@ export default function EventScreen() {
   const [longitude, setLongitude] = useState('5.2913');
   const [distance, setDistance] = useState('100');
 
-  const fetchEvents = useCallback(
-    async (isRefresh = false) => {
-      setError(null);
-      if (!isRefresh) setLoading(true);
-      else setRefreshing(true);
+const fetchEvents = useCallback(
+  async (isRefresh = false) => {
+    setError(null);
+    if (!isRefresh) {
+      setEvents([]); // Clear old events
+      setLoading(true);
+    } else {
+      setRefreshing(true);
+    }
 
-      try {
-        const url = `https://op-core.pokemon.com/api/v2/event_locator/search?latitude=${latitude}&longitude=${longitude}&distance=${distance}`;
-        const response = await fetch(url);
-        const json = await response.json();
-        setEvents(json.activities || []);
-      } catch (err) {
-        setError('Failed to load events.');
-        console.error(err);
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
+    try {
+      const url = `https://op-core.pokemon.com/api/v2/event_locator/search?latitude=${latitude}&longitude=${longitude}&distance=${distance}`;
+      const response = await fetch(url);
+
+      const contentType = response.headers.get('content-type');
+
+      if (!response.ok) {
+        throw new Error(`HTTP error ${response.status}`);
       }
-    },
-    [latitude, longitude, distance]
-  );
 
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error(`Unexpected content-type: ${contentType}`);
+      }
+
+      const json = await response.json();
+      setEvents(json.activities || []);
+    } catch (err) {
+      setError('Failed to load events.');
+      console.error('Event fetch error:', err.message);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  },
+  [latitude, longitude, distance]
+);
+
+
+  // Only fetch when params change (i.e., Apply is pressed from map picker)
   useEffect(() => {
-    fetchEvents(false);
-  }, [fetchEvents]);
+    if (params?.latitude && params?.longitude && params?.distance) {
+      setLatitude(params.latitude as string);
+      setLongitude(params.longitude as string);
+      setDistance(params.distance as string);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (
-        params?.latitude &&
-        params?.longitude &&
-        params?.distance
-      ) {
-        setLatitude(params.latitude as string);
-        setLongitude(params.longitude as string);
-        setDistance(params.distance as string);
-        fetchEvents(false);
-      }
-    }, [params])
-  );
+      setEvents([]); // Clear before fetching
+      fetchEvents(false);
+    }
+  }, [params.latitude, params.longitude, params.distance]);
 
   const getAddress = (address) => {
     if (!address) return null;

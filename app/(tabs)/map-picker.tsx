@@ -61,8 +61,8 @@ export default function MapPickerScreen() {
         </Text>
         <Slider
           style={{ width: '100%' }}
-          minimumValue={0.5 * 1609.34}
-          maximumValue={50 * 1609.34}
+          minimumValue={1 * 1609.34}
+          maximumValue={200 * 1609.34}
           step={0.5 * 1609.34}
           value={radius}
           onValueChange={setRadius}
@@ -86,7 +86,7 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: '#1f2226',
     padding: 16,
-    marginBottom: 120,
+    paddingBottom: 120,
   },
   label: {
     color: '#fff',
