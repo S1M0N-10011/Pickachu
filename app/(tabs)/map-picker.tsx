@@ -62,8 +62,8 @@ export default function MapPickerScreen() {
         <Slider
           style={{ width: '100%' }}
           minimumValue={1 * 1609.34}
-          maximumValue={200 * 1609.34}
-          step={0.5 * 1609.34}
+          maximumValue={250 * 1609.34}
+          step={1 * 1609.34}
           value={radius}
           onValueChange={setRadius}
           minimumTrackTintColor="#ffd33d"
