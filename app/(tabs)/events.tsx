@@ -198,6 +198,7 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#1f2226',
     padding: 16,
+    paddingBottom: 80,
   },
   searchRow: {
     flexDirection: 'row',
