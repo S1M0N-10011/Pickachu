@@ -86,7 +86,7 @@ const styles = StyleSheet.create({
     width: '100%',
     backgroundColor: '#1f2226',
     padding: 16,
-    paddingBottom: 120,
+    paddingBottom: 40,
   },
   label: {
     color: '#fff',

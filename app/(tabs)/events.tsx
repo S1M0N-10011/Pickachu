@@ -1,6 +1,5 @@
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import * as WebBrowser from 'expo-web-browser';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
@@ -25,7 +24,7 @@ export default function EventScreen() {
 
   const [latitude, setLatitude] = useState('52.1326');
   const [longitude, setLongitude] = useState('5.2913');
-  const [distance, setDistance] = useState('100');
+  const [distance, setDistance] = useState('50');
 
   const hasFetchedRef = useRef(false);
   const prevParamsRef = useRef({ latitude: '', longitude: '', distance: '' });
@@ -130,7 +129,7 @@ export default function EventScreen() {
           onPress={() => {
             Keyboard.dismiss();
             router.push({
-              pathname: '/(tabs)/map-picker',
+              pathname: '/map-picker',
               params: {
                 initialLat: latitude,
                 initialLng: longitude,
@@ -165,9 +164,24 @@ export default function EventScreen() {
               <TouchableOpacity
                 style={styles.eventContainer}
                 onPress={() => {
-                  if (item.metadata?.event_website) {
-                    WebBrowser.openBrowserAsync(item.metadata.event_website);
-                  }
+                  const addressText = getAddress(item.address);
+                  const date = item.start_datetime
+                    ? new Date(item.start_datetime).toLocaleDateString()
+                    : 'No date';
+
+                  router.push({
+                    pathname: '/event-details',
+                    params: {
+                      name: item.name,
+                      date,
+                      address: addressText,
+                      link: item.metadata?.event_website,
+                      details: item.metadata?.details,
+                      contact_email: item.metadata?.contact_email,
+                      contact_phone: item.metadata?.contact_phone,
+                      third_party_url: item.metadata?.third_party_url,
+                    },
+                  });
                 }}
               >
                 <Text style={styles.eventName}>{item.name}</Text>
