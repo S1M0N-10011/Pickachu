@@ -1,8 +1,11 @@
 import { Feather } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Location from 'expo-location';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Keyboard,
   StyleSheet,
@@ -11,6 +14,15 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+
+const LOCATION_CACHE_KEY = 'tcg_app_location_cache';
+
+interface LocationCache {
+  latitude: string;
+  longitude: string;
+  distance: string;
+  timestamp: number;
+}
 
 export default function EventScreen() {
   const router = useRouter();
@@ -21,13 +33,113 @@ export default function EventScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
+  const [locationLoading, setLocationLoading] = useState(false);
 
+  // Default to Netherlands coordinates as fallback
   const [latitude, setLatitude] = useState('52.1326');
   const [longitude, setLongitude] = useState('5.2913');
   const [distance, setDistance] = useState('50');
 
   const hasFetchedRef = useRef(false);
+  const hasInitializedLocationRef = useRef(false);
   const prevParamsRef = useRef({ latitude: '', longitude: '', distance: '' });
+
+  // Load cached location on component mount
+  useEffect(() => {
+    loadCachedLocation();
+  }, []);
+
+  const loadCachedLocation = async () => {
+    try {
+      const cachedData = await AsyncStorage.getItem(LOCATION_CACHE_KEY);
+      if (cachedData) {
+        const parsed: LocationCache = JSON.parse(cachedData);
+        setLatitude(parsed.latitude);
+        setLongitude(parsed.longitude);
+        setDistance(parsed.distance);
+        console.log('Loaded cached location:', parsed);
+      } else {
+        // No cached location, prompt for permission
+        await requestLocationPermission();
+      }
+    } catch (error) {
+      console.error('Error loading cached location:', error);
+      // Fallback to requesting permission
+      await requestLocationPermission();
+    }
+  };
+
+  const cacheLocation = async (lat: string, lng: string, dist: string) => {
+    try {
+      const cacheData: LocationCache = {
+        latitude: lat,
+        longitude: lng,
+        distance: dist,
+        timestamp: Date.now(),
+      };
+      await AsyncStorage.setItem(LOCATION_CACHE_KEY, JSON.stringify(cacheData));
+      console.log('Cached location:', cacheData);
+    } catch (error) {
+      console.error('Error caching location:', error);
+    }
+  };
+
+  const requestLocationPermission = async () => {
+    try {
+      setLocationLoading(true);
+      
+      // Check if location services are enabled
+      const enabled = await Location.hasServicesEnabledAsync();
+      if (!enabled) {
+        Alert.alert(
+          'Location Services Disabled',
+          'Please enable location services to find events near you.',
+          [{ text: 'OK' }]
+        );
+        setLocationLoading(false);
+        return;
+      }
+
+      // Request foreground permissions
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      
+      if (status !== 'granted') {
+        Alert.alert(
+          'Location Permission Required',
+          'This app needs location access to find Pokemon TCG events near you. You can still use the app by manually selecting a location.',
+          [{ text: 'OK' }]
+        );
+        setLocationLoading(false);
+        return;
+      }
+
+      // Get current location
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+
+      const newLat = location.coords.latitude.toFixed(6);
+      const newLng = location.coords.longitude.toFixed(6);
+
+      setLatitude(newLat);
+      setLongitude(newLng);
+      
+      // Cache the new location
+      await cacheLocation(newLat, newLng, distance);
+
+      console.log('Got user location:', { lat: newLat, lng: newLng });
+      
+    } catch (error) {
+      console.error('Error getting location:', error);
+      Alert.alert(
+        'Location Error',
+        'Could not get your current location. Using default location.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setLocationLoading(false);
+    }
+  };
 
   const fetchEvents = useCallback(
     async (
@@ -59,6 +171,10 @@ export default function EventScreen() {
 
         const json = await response.json();
         setEvents(json.activities || []);
+        
+        // Cache the location when events are successfully fetched
+        await cacheLocation(customLat, customLng, customDist);
+        
       } catch (err) {
         setError('Failed to load events.');
         console.error('Event fetch error:', err.message);
@@ -88,7 +204,7 @@ export default function EventScreen() {
       prevParamsRef.current = { latitude: lat, longitude: lng, distance: dist };
       hasFetchedRef.current = true;
     }
-  }, [params.latitude, params.longitude, params.distance]);
+  }, [params.latitude, params.longitude, params.distance, fetchEvents]);
 
   const getAddress = (address) => {
     if (!address) return null;
@@ -140,6 +256,17 @@ export default function EventScreen() {
         >
           <Feather name="sliders" size={24} color="#ffd33d" />
         </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.locationButton}
+          onPress={requestLocationPermission}
+          disabled={locationLoading}
+        >
+          {locationLoading ? (
+            <ActivityIndicator size="small" color="#ffd33d" />
+          ) : (
+            <Feather name="map-pin" size={24} color="#ffd33d" />
+          )}
+        </TouchableOpacity>
       </View>
 
       {error && (
@@ -149,7 +276,10 @@ export default function EventScreen() {
       )}
 
       {loading && events.length === 0 ? (
-        <ActivityIndicator size="large" color="#fff" />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#fff" />
+          <Text style={styles.loadingText}>Finding events near you...</Text>
+        </View>
       ) : (
         <FlatList
           data={filteredEvents}
@@ -233,6 +363,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  locationButton: {
+    marginLeft: 12,
+    padding: 8,
+    backgroundColor: '#2a2e33',
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   eventContainer: {
     backgroundColor: '#2a2e33',
     padding: 12,
@@ -264,5 +402,15 @@ const styles = StyleSheet.create({
     fontSize: 18,
     marginTop: 20,
     alignSelf: 'center',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#fff',
+    marginTop: 12,
+    fontSize: 16,
   },
 });
