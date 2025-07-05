@@ -11,11 +11,14 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#25292e',
+    backgroundColor: '#1f2226',
     justifyContent: 'center',
     alignItems: 'center',
+    paddingBottom: 80,
   },
   text: {
     color: '#fff',
+    fontSize: 24,
+    fontWeight: '600',
   },
 });

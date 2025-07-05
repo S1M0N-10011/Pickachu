@@ -30,6 +30,8 @@ export default function TabLayout() {
           elevation: 5,
           borderTopLeftRadius: 15,
           borderTopRightRadius: 15,
+          borderBottomLeftRadius: 15,
+          borderBottomRightRadius: 15,
           position: 'absolute',
           left: 0,
           right: 0,
