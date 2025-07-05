@@ -1,9 +1,13 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Colors } from '@/constants/Colors';
+import { StyleSheet, Text, View, useColorScheme } from 'react-native';
 
 export default function HomeScreen() {
+  const colorScheme = useColorScheme();
+  const theme = Colors[colorScheme ?? 'light'];
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.text}>Home</Text>
+    <View style={[styles.container, { backgroundColor: theme.background }]}>
+      <Text style={[styles.text, { color: theme.text }]}>Home</Text>
     </View>
   );
 }
@@ -11,11 +15,10 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#25292e',
     justifyContent: 'center',
     alignItems: 'center',
   },
   text: {
-    color: '#fff',
+    fontSize: 20,
   },
 });

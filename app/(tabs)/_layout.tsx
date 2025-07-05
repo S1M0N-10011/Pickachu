@@ -1,20 +1,25 @@
 import { Tabs } from 'expo-router';
 
+import { Colors } from '@/constants/Colors';
+import { useColorScheme } from '@/hooks/useColorScheme';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons';
 
 export default function TabLayout() {
+  const colorScheme = useColorScheme();
+  const themeColors = Colors[colorScheme ?? 'light'];
+
   return (
       <Tabs
         screenOptions={{
-          tabBarActiveTintColor: '#ffd33d',
+          tabBarActiveTintColor: themeColors.tabIconSelected,
           headerStyle: {
-            backgroundColor: '#25292e',
+            backgroundColor: themeColors.background,
           },
           headerShadowVisible: false,
-          headerTintColor: '#fff',
+          headerTintColor: themeColors.text,
           tabBarStyle: {
-            backgroundColor: '#25292e',
+            backgroundColor: themeColors.background,
           },
         }}
       >
