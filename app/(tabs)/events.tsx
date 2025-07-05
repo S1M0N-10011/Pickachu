@@ -6,7 +6,6 @@ import {
   ActivityIndicator,
   FlatList,
   Keyboard,
-  Modal,
   StyleSheet,
   Text,
   TextInput,
@@ -32,16 +31,13 @@ export default function EventScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
-  const [sortModalVisible, setSortModalVisible] = useState(false);
-  const [sortBy, setSortBy] = useState('date'); // 'date', 'name', 'distance'
 
-  // Default to Netherlands coordinates as fallback
-  const [latitude, setLatitude] = useState('52.1326');
-  const [longitude, setLongitude] = useState('5.2913');
-  const [distance, setDistance] = useState('50');
+  // Location state - will be set from cache or params
+  const [latitude, setLatitude] = useState('');
+  const [longitude, setLongitude] = useState('');
+  const [distance, setDistance] = useState('');
 
   const hasFetchedRef = useRef(false);
-  const hasInitializedLocationRef = useRef(false);
   const prevParamsRef = useRef({ latitude: '', longitude: '', distance: '' });
 
   // Load cached location on component mount
@@ -59,11 +55,24 @@ export default function EventScreen() {
         setDistance(parsed.distance);
         console.log('Loaded cached location:', parsed);
       } else {
-        // No cached location, use default Netherlands coordinates
-        console.log('No cached location, using default coordinates');
+        // No cached location, set default Netherlands coordinates and cache them
+        const defaultLat = '52.1326';
+        const defaultLng = '5.2913';
+        const defaultDist = '50';
+        
+        setLatitude(defaultLat);
+        setLongitude(defaultLng);
+        setDistance(defaultDist);
+        
+        await cacheLocation(defaultLat, defaultLng, defaultDist);
+        console.log('No cached location, using and caching default coordinates');
       }
     } catch (error) {
       console.error('Error loading cached location:', error);
+      // Fallback to default if cache fails
+      setLatitude('52.1326');
+      setLongitude('5.2913');
+      setDistance('50');
     }
   };
 
@@ -82,13 +91,56 @@ export default function EventScreen() {
     }
   };
 
+  // Helper function to get current cached location
+  const getCurrentCachedLocation = useCallback(async () => {
+    try {
+      const cachedData = await AsyncStorage.getItem(LOCATION_CACHE_KEY);
+      if (cachedData) {
+        const parsed: LocationCache = JSON.parse(cachedData);
+        return {
+          latitude: parsed.latitude,
+          longitude: parsed.longitude,
+          distance: parsed.distance,
+        };
+      }
+    } catch (error) {
+      console.error('Error getting cached location:', error);
+    }
+    // Fallback to current state
+    return { latitude, longitude, distance };
+  }, [latitude, longitude, distance]);
+
   const fetchEvents = useCallback(
     async (
       isRefresh = false,
-      customLat = latitude,
-      customLng = longitude,
-      customDist = distance
+      customLat?: string,
+      customLng?: string,
+      customDist?: string
     ) => {
+      // If refreshing and no custom values provided, get from cache
+      let lat = customLat || latitude;
+      let lng = customLng || longitude;
+      let dist = customDist || distance;
+
+      if (isRefresh && !customLat && !customLng && !customDist) {
+        const cachedLocation = await getCurrentCachedLocation();
+        lat = cachedLocation.latitude;
+        lng = cachedLocation.longitude;
+        dist = cachedLocation.distance;
+        
+        // Update state with cached values if they're different
+        if (lat !== latitude || lng !== longitude || dist !== distance) {
+          setLatitude(lat);
+          setLongitude(lng);
+          setDistance(dist);
+        }
+      }
+
+      // Don't fetch if we don't have coordinates yet
+      if (!lat || !lng || !dist) {
+        return;
+      }
+
       setError(null);
       if (!isRefresh) {
         setEvents([]);
@@ -98,7 +150,7 @@ export default function EventScreen() {
       }
 
       try {
-        const url = `https://op-core.pokemon.com/api/v2/event_locator/search?latitude=${customLat}&longitude=${customLng}&distance=${customDist}`;
+        const url = `https://op-core.pokemon.com/api/v2/event_locator/search?latitude=${lat}&longitude=${lng}&distance=${dist}`;
         const response = await fetch(url);
         const contentType = response.headers.get('content-type');
 
@@ -114,7 +166,7 @@ export default function EventScreen() {
         setEvents(json.activities || []);
         
         // Cache the location when events are successfully fetched
-        await cacheLocation(customLat, customLng, customDist);
+        await cacheLocation(lat, lng, dist);
         
       } catch (err) {
         setError('Failed to load events.');
@@ -124,7 +176,7 @@ export default function EventScreen() {
         setRefreshing(false);
       }
     },
-    [latitude, longitude, distance]
+    [latitude, longitude, distance, getCurrentCachedLocation]
   );
 
   useEffect(() => {
@@ -140,6 +192,12 @@ export default function EventScreen() {
       setLatitude(lat);
       setLongitude(lng);
       setDistance(dist);
+      
+      // Clear search when location changes
+      if (hasChanged && hasFetchedRef.current) {
+        setSearch('');
+      }
+      
       fetchEvents(false, lat, lng, dist);
 
       prevParamsRef.current = { latitude: lat, longitude: lng, distance: dist };
@@ -161,23 +219,25 @@ export default function EventScreen() {
     return parts.length ? parts.join(', ') : null;
   };
 
-  const filteredEvents = events
-    .filter((event) =>
-      event.name.toLowerCase().includes(search.toLowerCase())
-    )
-    .sort((a, b) => {
-      switch (sortBy) {
-        case 'name':
-          return a.name.localeCompare(b.name);
-        case 'distance':
-          // Note: You'd need to calculate distance if the API provides coordinates
-          // For now, just sort by name as fallback
-          return a.name.localeCompare(b.name);
-        case 'date':
-        default:
-          return new Date(a.start_datetime).getTime() - new Date(b.start_datetime).getTime();
-      }
+  const filteredEvents = events.filter((event) =>
+    event.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const handleLocationButtonPress = async () => {
+    Keyboard.dismiss();
+    
+    // Get the most current cached location
+    const currentLocation = await getCurrentCachedLocation();
+    
+    router.push({
+      pathname: '/map-picker',
+      params: {
+        initialLat: currentLocation.latitude,
+        initialLng: currentLocation.longitude,
+        initialRadius: currentLocation.distance,
+      },
     });
+  };
 
   return (
     <View style={styles.container}>
@@ -192,24 +252,14 @@ export default function EventScreen() {
         <TouchableOpacity
           style={styles.searchButton}
           onPress={() => {
-            setSortModalVisible(true);
+            // Placeholder for future sort functionality
           }}
         >
           <Feather name="sliders" size={24} color="#ffd33d" />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.locationButton}
-          onPress={() => {
-            Keyboard.dismiss();
-            router.push({
-              pathname: '/map-picker',
-              params: {
-                initialLat: latitude,
-                initialLng: longitude,
-                initialRadius: distance,
-              },
-            });
-          }}
+          onPress={handleLocationButtonPress}
         >
           <Feather name="map-pin" size={24} color="#ffd33d" />
         </TouchableOpacity>
@@ -272,74 +322,11 @@ export default function EventScreen() {
             <Text style={styles.noResults}>No events found.</Text>
           }
           refreshing={refreshing}
-          onRefresh={() =>
-            fetchEvents(true, latitude, longitude, distance)
-          }
+          onRefresh={() => fetchEvents(true)}
           contentContainerStyle={{ paddingBottom: 80 }}
           onScrollBeginDrag={() => Keyboard.dismiss()}
         />
       )}
-
-      {/* Sort Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={sortModalVisible}
-        onRequestClose={() => setSortModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContainer}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Sort Events</Text>
-              <TouchableOpacity
-                onPress={() => setSortModalVisible(false)}
-                style={styles.closeButton}
-              >
-                <Feather name="x" size={24} color="#fff" />
-              </TouchableOpacity>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.sortOption, sortBy === 'date' && styles.sortOptionActive]}
-              onPress={() => {
-                setSortBy('date');
-                setSortModalVisible(false);
-              }}
-            >
-              <Feather name="calendar" size={20} color={sortBy === 'date' ? '#ffd33d' : '#fff'} />
-              <Text style={[styles.sortOptionText, sortBy === 'date' && styles.sortOptionTextActive]}>
-                Sort by Date
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.sortOption, sortBy === 'name' && styles.sortOptionActive]}
-              onPress={() => {
-                setSortBy('name');
-                setSortModalVisible(false);
-              }}
-            >
-              <Feather name="type" size={20} color={sortBy === 'name' ? '#ffd33d' : '#fff'} />
-              <Text style={[styles.sortOptionText, sortBy === 'name' && styles.sortOptionTextActive]}>
-                Sort by Name
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.sortOption, sortBy === 'distance' && styles.sortOptionActive]}
-              onPress={() => {
-                setSortBy('distance');
-                setSortModalVisible(false);
-              }}
-            >
-              <Feather name="navigation" size={20} color={sortBy === 'distance' ? '#ffd33d' : '#fff'} />
-              <Text style={[styles.sortOptionText, sortBy === 'distance' && styles.sortOptionTextActive]}>
-                Sort by Distance
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -419,51 +406,5 @@ const styles = StyleSheet.create({
     color: '#fff',
     marginTop: 12,
     fontSize: 16,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContainer: {
-    backgroundColor: '#2a2e33',
-    borderRadius: 12,
-    padding: 20,
-    width: '80%',
-    maxWidth: 300,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  modalTitle: {
-    color: '#fff',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  closeButton: {
-    padding: 4,
-  },
-  sortOption: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  sortOptionActive: {
-    backgroundColor: '#1f2226',
-  },
-  sortOptionText: {
-    color: '#fff',
-    fontSize: 16,
-    marginLeft: 12,
-  },
-  sortOptionTextActive: {
-    color: '#ffd33d',
   },
 });

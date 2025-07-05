@@ -25,6 +25,13 @@ export default function MapPickerScreen() {
     longitude: initialLng,
   });
 
+  const [region, setRegion] = useState({
+    latitude: initialLat,
+    longitude: initialLng,
+    latitudeDelta: 0.2,
+    longitudeDelta: 0.2,
+  });
+
   const [radius, setRadius] = useState(initialRadiusMiles * 1609.34); // meters
   const [locationLoading, setLocationLoading] = useState(false);
 
@@ -65,10 +72,23 @@ export default function MapPickerScreen() {
       const newLat = location.coords.latitude;
       const newLng = location.coords.longitude;
 
-      setCenter({
+      const newCenter = {
         latitude: newLat,
         longitude: newLng,
-      });
+      };
+
+      const newRegion = {
+        latitude: newLat,
+        longitude: newLng,
+        latitudeDelta: 0.2,
+        longitudeDelta: 0.2,
+      };
+
+      setCenter(newCenter);
+      setRegion(newRegion);
+      
+      // Set radius to 20 miles when getting current location
+      setRadius(20 * 1609.34);
 
       console.log('Got user location:', { lat: newLat, lng: newLng });
       
@@ -99,17 +119,12 @@ export default function MapPickerScreen() {
     <View style={{ flex: 1 }}>
       <MapView
         style={styles.map}
-        initialRegion={{
-          ...center,
-          latitudeDelta: 0.2,
-          longitudeDelta: 0.2,
+        region={region}
+        onPress={(e) => {
+          const newCoordinate = e.nativeEvent.coordinate;
+          setCenter(newCoordinate);
         }}
-        region={{
-          ...center,
-          latitudeDelta: 0.2,
-          longitudeDelta: 0.2,
-        }}
-        onPress={(e) => setCenter(e.nativeEvent.coordinate)}
+        onRegionChangeComplete={setRegion}
       >
         <Circle
           center={center}
