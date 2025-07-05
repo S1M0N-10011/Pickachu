@@ -1,5 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Linking, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+    ActivityIndicator,
+    FlatList,
+    Linking,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from 'react-native';
 
 export default function EventScreen() {
   const [events, setEvents] = useState([]);
@@ -15,7 +24,9 @@ export default function EventScreen() {
     }
 
     try {
-      const response = await fetch('https://op-core.pokemon.com/api/v2/event_locator/search?latitude=52.3676&longitude=4.9041&distance=10');
+      const response = await fetch(
+        'https://op-core.pokemon.com/api/v2/event_locator/search?latitude=52.132633&longitude=5.291265999999999&distance=100'
+      );
       const json = await response.json();
       setEvents(json.activities || []);
     } catch (err) {
@@ -52,12 +63,43 @@ export default function EventScreen() {
     );
   }
 
-  const filteredEvents = events.filter(event =>
+const filteredEvents = events
+  .filter(event =>
     event.name.toLowerCase().includes(search.toLowerCase())
-  );
+  )
+  .sort((a, b) => {
+    const dateA = new Date(a.start_datetime);
+    const dateB = new Date(b.start_datetime);
+    return dateA - dateB;
+  });
+
+  // Helper to build a fallback address if formatted_address is missing
+  const getAddress = (address) => {
+    if (!address) return null;
+
+    // Use formatted_address if available
+    if (address.formatted_address) return address.formatted_address;
+
+    // Otherwise, build from parts, filtering out empty/null
+    const parts = [
+      address.name,
+      address.street_address,
+      address.city,
+      address.state,
+      address.postal_code,
+      address.country_code,
+    ].filter(Boolean);
+
+    return parts.length ? parts.join(', ') : null;
+  };
 
   const renderItem = ({ item }) => {
-    const date = new Date(item.start_datetime).toLocaleDateString();
+    const date = item.start_datetime
+      ? new Date(item.start_datetime).toLocaleDateString()
+      : 'No date';
+
+    const addressText = getAddress(item.address);
+
     return (
       <TouchableOpacity
         style={styles.eventContainer}
@@ -69,7 +111,9 @@ export default function EventScreen() {
       >
         <Text style={styles.eventName}>{item.name}</Text>
         <Text style={styles.eventDate}>{date}</Text>
-        <Text style={styles.eventAddress}>{item.address?.formatted_address}</Text>
+        {addressText ? (
+          <Text style={styles.eventAddress}>{addressText}</Text>
+        ) : null}
       </TouchableOpacity>
     );
   };
@@ -87,7 +131,9 @@ export default function EventScreen() {
         data={filteredEvents}
         keyExtractor={(item) => item.guid}
         renderItem={renderItem}
-        ListEmptyComponent={<Text style={styles.noResults}>No events found.</Text>}
+        ListEmptyComponent={
+          <Text style={styles.noResults}>No events found.</Text>
+        }
         refreshing={refreshing}
         onRefresh={() => {
           setRefreshing(true);
