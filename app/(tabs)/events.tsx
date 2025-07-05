@@ -1,11 +1,11 @@
 import { Feather } from '@expo/vector-icons';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
     Keyboard,
     Linking,
-    Modal,
     StyleSheet,
     Text,
     TextInput,
@@ -14,26 +14,24 @@ import {
 } from 'react-native';
 
 export default function EventScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams();
+
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
 
-  const [latitude, setLatitude] = useState('52.3676');
-  const [longitude, setLongitude] = useState('4.9041');
-  const [distance, setDistance] = useState('10');
-
-  const [modalVisible, setModalVisible] = useState(false);
+  const [latitude, setLatitude] = useState('52.1326');
+  const [longitude, setLongitude] = useState('5.2913');
+  const [distance, setDistance] = useState('100');
 
   const fetchEvents = useCallback(
     async (isRefresh = false) => {
       setError(null);
-      if (!isRefresh) {
-        setLoading(true);
-      } else {
-        setRefreshing(true);
-      }
+      if (!isRefresh) setLoading(true);
+      else setRefreshing(true);
 
       try {
         const url = `https://op-core.pokemon.com/api/v2/event_locator/search?latitude=${latitude}&longitude=${longitude}&distance=${distance}`;
@@ -55,6 +53,21 @@ export default function EventScreen() {
     fetchEvents(false);
   }, [fetchEvents]);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (
+        params?.latitude &&
+        params?.longitude &&
+        params?.distance
+      ) {
+        setLatitude(params.latitude as string);
+        setLongitude(params.longitude as string);
+        setDistance(params.distance as string);
+        fetchEvents(false);
+      }
+    }, [params])
+  );
+
   const getAddress = (address) => {
     if (!address) return null;
     if (address.formatted_address) return address.formatted_address;
@@ -73,22 +86,6 @@ export default function EventScreen() {
     .filter((event) => event.name.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => new Date(a.start_datetime) - new Date(b.start_datetime));
 
-  const isValidNumber = (value) => !isNaN(parseFloat(value)) && isFinite(value);
-
-  const applyParams = () => {
-    if (
-      !isValidNumber(latitude) ||
-      !isValidNumber(longitude) ||
-      !isValidNumber(distance)
-    ) {
-      alert('Please enter valid numeric values.');
-      return;
-    }
-    setModalVisible(false);
-    fetchEvents(false);
-    Keyboard.dismiss();
-  };
-
   return (
     <View style={styles.container}>
       <View style={styles.searchRow}>
@@ -103,7 +100,14 @@ export default function EventScreen() {
           style={styles.searchButton}
           onPress={() => {
             Keyboard.dismiss();
-            setModalVisible(true);
+            router.push({
+              pathname: '/(tabs)/map-picker',
+              params: {
+                initialLat: latitude,
+                initialLng: longitude,
+                initialRadius: distance,
+              },
+            });
           }}
         >
           <Feather name="sliders" size={24} color="#ffd33d" />
@@ -111,14 +115,8 @@ export default function EventScreen() {
       </View>
 
       {error && (
-        <TouchableOpacity
-          style={{ marginBottom: 16 }}
-          onPress={() => fetchEvents(false)}
-          activeOpacity={0.7}
-        >
-          <Text style={[styles.errorText, { textAlign: 'center' }]}>
-            {error} Tap to retry.
-          </Text>
+        <TouchableOpacity onPress={() => fetchEvents(false)}>
+          <Text style={styles.errorText}>{error} Tap to retry.</Text>
         </TouchableOpacity>
       )}
 
@@ -132,7 +130,6 @@ export default function EventScreen() {
             const date = item.start_datetime
               ? new Date(item.start_datetime).toLocaleDateString()
               : 'No date';
-
             const addressText = getAddress(item.address);
 
             return (
@@ -146,9 +143,9 @@ export default function EventScreen() {
               >
                 <Text style={styles.eventName}>{item.name}</Text>
                 <Text style={styles.eventDate}>{date}</Text>
-                {addressText ? (
+                {addressText && (
                   <Text style={styles.eventAddress}>{addressText}</Text>
-                ) : null}
+                )}
               </TouchableOpacity>
             );
           }}
@@ -161,66 +158,6 @@ export default function EventScreen() {
           onScrollBeginDrag={() => Keyboard.dismiss()}
         />
       )}
-
-      {/* Bottom Sheet Modal */}
-      <Modal
-        visible={modalVisible}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHandle} />
-            <Text style={styles.modalTitle}>Search Parameters</Text>
-
-            <Text style={styles.label}>Latitude</Text>
-            <TextInput
-              style={styles.modalInput}
-              keyboardType="numeric"
-              value={latitude}
-              onChangeText={setLatitude}
-              placeholder="Latitude"
-              placeholderTextColor="#888"
-            />
-
-            <Text style={styles.label}>Longitude</Text>
-            <TextInput
-              style={styles.modalInput}
-              keyboardType="numeric"
-              value={longitude}
-              onChangeText={setLongitude}
-              placeholder="Longitude"
-              placeholderTextColor="#888"
-            />
-
-            <Text style={styles.label}>Distance (km)</Text>
-            <TextInput
-              style={styles.modalInput}
-              keyboardType="numeric"
-              value={distance}
-              onChangeText={setDistance}
-              placeholder="Distance"
-              placeholderTextColor="#888"
-            />
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={styles.modalButtonCancel}
-                onPress={() => setModalVisible(false)}
-              >
-                <Text style={styles.modalButtonCancelText}>Cancel</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.modalButtonApply}
-                onPress={applyParams}
-              >
-                <Text style={styles.modalButtonApplyText}>Apply</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }
@@ -230,11 +167,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#1f2226',
     padding: 16,
-    paddingBottom: 80,
   },
   searchRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     marginBottom: 16,
   },
   searchInput: {
@@ -243,7 +178,6 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     paddingHorizontal: 12,
     color: '#fff',
-    fontSize: 16,
   },
   searchButton: {
     marginLeft: 12,
@@ -275,85 +209,14 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: 'red',
-    fontSize: 18,
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 12,
   },
   noResults: {
     color: '#888',
     fontSize: 18,
     marginTop: 20,
     alignSelf: 'center',
-  },
-
-  // Bottom sheet modal styles
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    backgroundColor: '#2a2e33',
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
-    padding: 24,
-    height: '80%',
-  },
-  modalHandle: {
-    width: 40,
-    height: 4,
-    backgroundColor: '#666',
-    borderRadius: 2,
-    alignSelf: 'center',
-    marginBottom: 12,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#fff',
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  label: {
-    color: '#ccc',
-    marginTop: 12,
-    marginBottom: 6,
-  },
-  modalInput: {
-    backgroundColor: '#1f2226',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    color: '#fff',
-    height: 40,
-    fontSize: 16,
-  },
-  modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 24,
-  },
-  modalButtonApply: {
-    flex: 1,
-    marginHorizontal: 6,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: '#ffd33d',
-  },
-  modalButtonApplyText: {
-    color: '#25292e',
-    fontSize: 16,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  modalButtonCancel: {
-    flex: 1,
-    marginHorizontal: 6,
-    paddingVertical: 12,
-    borderRadius: 8,
-    backgroundColor: '#555',
-  },
-  modalButtonCancelText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-    textAlign: 'center',
   },
 });
