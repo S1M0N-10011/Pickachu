@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -27,53 +27,67 @@ export default function EventScreen() {
   const [longitude, setLongitude] = useState('5.2913');
   const [distance, setDistance] = useState('100');
 
-const fetchEvents = useCallback(
-  async (isRefresh = false) => {
-    setError(null);
-    if (!isRefresh) {
-      setEvents([]); // Clear old events
-      setLoading(true);
-    } else {
-      setRefreshing(true);
-    }
+  const hasFetchedRef = useRef(false);
+  const prevParamsRef = useRef({ latitude: '', longitude: '', distance: '' });
 
-    try {
-      const url = `https://op-core.pokemon.com/api/v2/event_locator/search?latitude=${latitude}&longitude=${longitude}&distance=${distance}`;
-      const response = await fetch(url);
-
-      const contentType = response.headers.get('content-type');
-
-      if (!response.ok) {
-        throw new Error(`HTTP error ${response.status}`);
+  const fetchEvents = useCallback(
+    async (
+      isRefresh = false,
+      customLat = latitude,
+      customLng = longitude,
+      customDist = distance
+    ) => {
+      setError(null);
+      if (!isRefresh) {
+        setEvents([]);
+        setLoading(true);
+      } else {
+        setRefreshing(true);
       }
 
-      if (!contentType || !contentType.includes('application/json')) {
-        throw new Error(`Unexpected content-type: ${contentType}`);
+      try {
+        const url = `https://op-core.pokemon.com/api/v2/event_locator/search?latitude=${customLat}&longitude=${customLng}&distance=${customDist}`;
+        const response = await fetch(url);
+        const contentType = response.headers.get('content-type');
+
+        if (!response.ok) {
+          throw new Error(`HTTP error ${response.status}`);
+        }
+
+        if (!contentType || !contentType.includes('application/json')) {
+          throw new Error(`Unexpected content-type: ${contentType}`);
+        }
+
+        const json = await response.json();
+        setEvents(json.activities || []);
+      } catch (err) {
+        setError('Failed to load events.');
+        console.error('Event fetch error:', err.message);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
       }
+    },
+    [latitude, longitude, distance]
+  );
 
-      const json = await response.json();
-      setEvents(json.activities || []);
-    } catch (err) {
-      setError('Failed to load events.');
-      console.error('Event fetch error:', err.message);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  },
-  [latitude, longitude, distance]
-);
-
-
-  // Only fetch when params change (i.e., Apply is pressed from map picker)
   useEffect(() => {
-    if (params?.latitude && params?.longitude && params?.distance) {
-      setLatitude(params.latitude as string);
-      setLongitude(params.longitude as string);
-      setDistance(params.distance as string);
+    const lat = (params.latitude as string) ?? latitude;
+    const lng = (params.longitude as string) ?? longitude;
+    const dist = (params.distance as string) ?? distance;
 
-      setEvents([]); // Clear before fetching
-      fetchEvents(false);
+    const prev = prevParamsRef.current;
+    const hasChanged =
+      lat !== prev.latitude || lng !== prev.longitude || dist !== prev.distance;
+
+    if (hasChanged || !hasFetchedRef.current) {
+      setLatitude(lat);
+      setLongitude(lng);
+      setDistance(dist);
+      fetchEvents(false, lat, lng, dist);
+
+      prevParamsRef.current = { latitude: lat, longitude: lng, distance: dist };
+      hasFetchedRef.current = true;
     }
   }, [params.latitude, params.longitude, params.distance]);
 
@@ -92,8 +106,14 @@ const fetchEvents = useCallback(
   };
 
   const filteredEvents = events
-    .filter((event) => event.name.toLowerCase().includes(search.toLowerCase()))
-    .sort((a, b) => new Date(a.start_datetime) - new Date(b.start_datetime));
+    .filter((event) =>
+      event.name.toLowerCase().includes(search.toLowerCase())
+    )
+    .sort(
+      (a, b) =>
+        new Date(a.start_datetime).getTime() -
+        new Date(b.start_datetime).getTime()
+    );
 
   return (
     <View style={styles.container}>
@@ -162,7 +182,9 @@ const fetchEvents = useCallback(
             <Text style={styles.noResults}>No events found.</Text>
           }
           refreshing={refreshing}
-          onRefresh={() => fetchEvents(true)}
+          onRefresh={() =>
+            fetchEvents(true, latitude, longitude, distance)
+          }
           contentContainerStyle={{ paddingBottom: 80 }}
           onScrollBeginDrag={() => Keyboard.dismiss()}
         />
