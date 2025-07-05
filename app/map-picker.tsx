@@ -32,8 +32,14 @@ export default function MapPickerScreen() {
     longitudeDelta: 0.2,
   });
 
-  const [radius, setRadius] = useState(initialRadiusMiles * 1609.34); // meters
+  // Store radius in kilometers for UI, convert to meters for map circle
+  const [radiusKm, setRadiusKm] = useState(initialRadiusMiles * 1.60934);
   const [locationLoading, setLocationLoading] = useState(false);
+
+  // Helper functions for conversions
+  const kmToMiles = (km: number) => km / 1.60934;
+  const kmToMeters = (km: number) => km * 1000;
+  const milesToKm = (miles: number) => miles * 1.60934;
 
   const requestLocationPermission = async () => {
     try {
@@ -87,8 +93,7 @@ export default function MapPickerScreen() {
       setCenter(newCenter);
       setRegion(newRegion);
       
-      // Set radius to 20 miles when getting current location
-      setRadius(20 * 1609.34);
+      setRadiusKm(20);
 
       console.log('Got user location:', { lat: newLat, lng: newLng });
       
@@ -105,12 +110,14 @@ export default function MapPickerScreen() {
   };
 
   const onApply = () => {
+    const radiusInMiles = Math.round(kmToMiles(radiusKm));
+    
     router.replace({
       pathname: '/(tabs)/events',
       params: {
         latitude: center.latitude.toFixed(6),
         longitude: center.longitude.toFixed(6),
-        distance: (radius / 1609.34).toFixed(1),
+        distance: radiusInMiles.toString(),
       },
     });
   };
@@ -128,7 +135,7 @@ export default function MapPickerScreen() {
       >
         <Circle
           center={center}
-          radius={radius}
+          radius={kmToMeters(radiusKm)}
           fillColor="rgba(255,211,61,0.2)"
           strokeColor="#ffd33d"
         />
@@ -137,15 +144,15 @@ export default function MapPickerScreen() {
 
       <View style={styles.bottomPanel}>
         <Text style={styles.label}>
-          Radius: {(radius / 1609.34).toFixed(1)} miles
+          Radius: {radiusKm.toFixed(1)} km
         </Text>
         <Slider
           style={{ width: '100%' }}
-          minimumValue={1 * 1609.34}
-          maximumValue={250 * 1609.34}
-          step={1 * 1609.34}
-          value={radius}
-          onValueChange={setRadius}
+          minimumValue={1}
+          maximumValue={400}
+          step={1}
+          value={radiusKm}
+          onValueChange={setRadiusKm}
           minimumTrackTintColor="#ffd33d"
         />
         
