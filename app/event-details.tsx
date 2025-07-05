@@ -3,6 +3,7 @@ import * as WebBrowser from 'expo-web-browser';
 import React from 'react';
 import {
   Linking,
+  Platform,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -10,7 +11,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-
 
 export default function EventDetailsScreen() {
   const {
@@ -24,6 +24,37 @@ export default function EventDetailsScreen() {
   } = useLocalSearchParams();
 
   const openLink = async (url: string) => {
+    if (await Linking.canOpenURL(url)) {
+      WebBrowser.openBrowserAsync(url);
+    }
+  };
+
+  const openCalendar = async () => {
+    const url = Platform.OS === 'ios'
+      ? 'calshow://'
+      : 'content://com.android.calendar/time/';
+    if (await Linking.canOpenURL(url)) {
+      Linking.openURL(url);
+    }
+  };
+
+  const openEmail = async (email: string) => {
+    const url = `mailto:${email}`;
+    if (await Linking.canOpenURL(url)) {
+      Linking.openURL(url);
+    }
+  };
+
+  const openPhone = async (phone: string) => {
+    const url = `tel:${phone}`;
+    if (await Linking.canOpenURL(url)) {
+      Linking.openURL(url);
+    }
+  };
+
+  const openAddress = async (addr: string) => {
+    const encodedAddress = encodeURIComponent(addr);
+    const url = `https://maps.google.com/?q=${encodedAddress}`;
     if (await Linking.canOpenURL(url)) {
       WebBrowser.openBrowserAsync(url);
     }
@@ -45,14 +76,18 @@ export default function EventDetailsScreen() {
           {date && (
             <View style={styles.section}>
               <Text style={styles.label}>Date</Text>
-              <Text style={styles.text}>{date}</Text>
+              <TouchableOpacity onPress={openCalendar}>
+                <Text style={styles.link}>{date}</Text>
+              </TouchableOpacity>
             </View>
           )}
 
           {address && (
             <View style={styles.section}>
               <Text style={styles.label}>Address</Text>
-              <Text style={styles.text}>{address}</Text>
+              <TouchableOpacity onPress={() => openAddress(address as string)}>
+                <Text style={styles.link}>{address}</Text>
+              </TouchableOpacity>
             </View>
           )}
 
@@ -60,10 +95,14 @@ export default function EventDetailsScreen() {
             <View style={styles.section}>
               <Text style={styles.label}>Contact</Text>
               {contact_email && (
-                <Text style={styles.text}>Email: {contact_email}</Text>
+                <TouchableOpacity onPress={() => openEmail(contact_email as string)}>
+                  <Text style={styles.link}>Email: {contact_email}</Text>
+                </TouchableOpacity>
               )}
               {contact_phone && (
-                <Text style={styles.text}>Phone: {contact_phone}</Text>
+                <TouchableOpacity onPress={() => openPhone(contact_phone as string)}>
+                  <Text style={styles.link}>Phone: {contact_phone}</Text>
+                </TouchableOpacity>
               )}
             </View>
           )}
@@ -119,6 +158,5 @@ const styles = StyleSheet.create({
   link: {
     fontSize: 16,
     color: '#ccc',
-    textDecorationLine: 'underline',
   },
 });
