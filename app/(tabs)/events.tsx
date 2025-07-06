@@ -14,12 +14,18 @@ import {
 } from 'react-native';
 
 const LOCATION_CACHE_KEY = 'tcg_app_location_cache';
+const SORT_CACHE_KEY = 'tcg_app_sort_cache';
 
 interface LocationCache {
   latitude: string;
   longitude: string;
   distance: string;
   timestamp: number;
+}
+
+interface SortCache {
+  option: 'date' | 'distance' | 'name';
+  order: 'asc' | 'desc';
 }
 
 export default function EventScreen() {
@@ -35,12 +41,17 @@ export default function EventScreen() {
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
   const [distance, setDistance] = useState('');
+  
+  // Sort state
+  const [sortOption, setSortOption] = useState<'date' | 'distance' | 'name'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   const hasFetchedRef = useRef(false);
   const prevParamsRef = useRef({ latitude: '', longitude: '', distance: '' });
 
   useEffect(() => {
     loadCachedLocation();
+    loadCachedSort();
   }, []);
 
   const loadCachedLocation = async () => {
@@ -72,6 +83,20 @@ export default function EventScreen() {
     }
   };
 
+  const loadCachedSort = async () => {
+    try {
+      const cachedData = await AsyncStorage.getItem(SORT_CACHE_KEY);
+      if (cachedData) {
+        const parsed: SortCache = JSON.parse(cachedData);
+        setSortOption(parsed.option);
+        setSortOrder(parsed.order);
+        console.log('Loaded cached sort:', parsed);
+      }
+    } catch (error) {
+      console.error('Error loading cached sort:', error);
+    }
+  };
+
   const cacheLocation = async (lat: string, lng: string, dist: string) => {
     try {
       const cacheData: LocationCache = {
@@ -84,6 +109,16 @@ export default function EventScreen() {
       console.log('Cached location:', cacheData);
     } catch (error) {
       console.error('Error caching location:', error);
+    }
+  };
+
+  const cacheSort = async (option: 'date' | 'distance' | 'name', order: 'asc' | 'desc') => {
+    try {
+      const cacheData: SortCache = { option, order };
+      await AsyncStorage.setItem(SORT_CACHE_KEY, JSON.stringify(cacheData));
+      console.log('Cached sort:', cacheData);
+    } catch (error) {
+      console.error('Error caching sort:', error);
     }
   };
 
@@ -103,6 +138,52 @@ export default function EventScreen() {
     }
     return { latitude, longitude, distance };
   }, [latitude, longitude, distance]);
+
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // Earth's radius in kilometers
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
+
+  const sortEvents = useCallback((eventList: any[], currentLat: string, currentLng: string) => {
+    const lat = parseFloat(currentLat);
+    const lng = parseFloat(currentLng);
+
+    return [...eventList].sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortOption) {
+        case 'date':
+          const dateA = a.start_datetime ? new Date(a.start_datetime) : new Date(0);
+          const dateB = b.start_datetime ? new Date(b.start_datetime) : new Date(0);
+          comparison = dateA.getTime() - dateB.getTime();
+          break;
+        
+        case 'distance':
+          if (a.address?.latitude && a.address?.longitude && b.address?.latitude && b.address?.longitude) {
+            const distA = calculateDistance(lat, lng, parseFloat(a.address.latitude), parseFloat(a.address.longitude));
+            const distB = calculateDistance(lat, lng, parseFloat(b.address.latitude), parseFloat(b.address.longitude));
+            comparison = distA - distB;
+          }
+          break;
+        
+        case 'name':
+          comparison = a.name.localeCompare(b.name);
+          break;
+        
+        default:
+          comparison = 0;
+      }
+
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+  }, [sortOption, sortOrder]);
 
   const fetchEvents = useCallback(
     async (
@@ -155,11 +236,7 @@ export default function EventScreen() {
         }
 
         const json = await response.json();
-        const sortedEvents = (json.activities || []).sort((a, b) => {
-          const dateA = a.start_datetime ? new Date(a.start_datetime) : new Date(0);
-          const dateB = b.start_datetime ? new Date(b.start_datetime) : new Date(0);
-          return dateA.getTime() - dateB.getTime();
-        });
+        const sortedEvents = sortEvents(json.activities || [], lat, lng);
 
         setEvents(sortedEvents);
         await cacheLocation(lat, lng, dist);
@@ -171,8 +248,26 @@ export default function EventScreen() {
         setRefreshing(false);
       }
     },
-    [latitude, longitude, distance, getCurrentCachedLocation]
+    [latitude, longitude, distance, getCurrentCachedLocation, sortEvents]
   );
+
+  // Handle sort parameter changes
+  useEffect(() => {
+    const newSortOption = (params.sortOption as 'date' | 'distance' | 'name') || sortOption;
+    const newSortOrder = (params.sortOrder as 'asc' | 'desc') || sortOrder;
+
+    if (newSortOption !== sortOption || newSortOrder !== sortOrder) {
+      setSortOption(newSortOption);
+      setSortOrder(newSortOrder);
+      cacheSort(newSortOption, newSortOrder);
+      
+      // Re-sort existing events
+      if (events.length > 0) {
+        const sortedEvents = sortEvents(events, latitude, longitude);
+        setEvents(sortedEvents);
+      }
+    }
+  }, [params.sortOption, params.sortOrder, sortOption, sortOrder, events, latitude, longitude, sortEvents]);
 
   useEffect(() => {
     const lat = (params.latitude as string) ?? latitude;
@@ -231,6 +326,27 @@ export default function EventScreen() {
     });
   };
 
+  const handleSortButtonPress = async () => {
+    Keyboard.dismiss();
+    const currentLocation = await getCurrentCachedLocation();
+
+    router.push({
+      pathname: '/sort-picker',
+      params: {
+        currentOption: sortOption,
+        currentOrder: sortOrder,
+        // Pass location params for navigation back
+        latitude: currentLocation.latitude,
+        longitude: currentLocation.longitude,
+        distance: currentLocation.distance,
+      },
+    });
+  };
+
+  const getSortButtonIcon = () => {
+    return 'sliders';
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.searchRow}>
@@ -241,8 +357,11 @@ export default function EventScreen() {
           value={search}
           onChangeText={setSearch}
         />
-        <TouchableOpacity style={styles.searchButton}>
-          <Feather name="sliders" size={24} color="#ffd33d" />
+        <TouchableOpacity 
+          style={styles.searchButton}
+          onPress={handleSortButtonPress}
+        >
+          <Feather name={getSortButtonIcon()} size={24} color="#ffd33d" />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.locationButton}

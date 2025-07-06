@@ -34,6 +34,14 @@ export default function RootLayout() {
           presentation: 'modal',
         }}
       />
+
+      <Stack.Screen
+        name="sort-picker"
+        options={{
+          title: 'Sort Events',
+          presentation: 'modal',
+        }}
+      />
     </Stack>
   );
 }
