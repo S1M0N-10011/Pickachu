@@ -20,6 +20,10 @@ export default function MapPickerScreen() {
   const initialLng = parseFloat(params.initialLng as string) || 5.2913;
   const initialRadiusKm = parseFloat(params.initialRadius as string) || 100;
 
+  // Cached sorting params from router params — default to your preferred values
+  const cachedSortField = (params.sortField as string) || 'date';
+  const cachedSortOrder = (params.sortOrder as string) || 'asc';
+
   const [center, setCenter] = useState({
     latitude: initialLat,
     longitude: initialLng,
@@ -40,7 +44,7 @@ export default function MapPickerScreen() {
   const requestLocationPermission = async () => {
     try {
       setLocationLoading(true);
-      
+
       const enabled = await Location.hasServicesEnabledAsync();
       if (!enabled) {
         Alert.alert(
@@ -53,7 +57,7 @@ export default function MapPickerScreen() {
       }
 
       const { status } = await Location.requestForegroundPermissionsAsync();
-      
+
       if (status !== 'granted') {
         Alert.alert(
           'Location Permission Required',
@@ -85,11 +89,10 @@ export default function MapPickerScreen() {
 
       setCenter(newCenter);
       setRegion(newRegion);
-      
       setRadiusKm(20);
 
       console.log('Got user location:', { lat: newLat, lng: newLng });
-      
+
     } catch (error) {
       console.error('Error getting location:', error);
       Alert.alert(
@@ -109,6 +112,10 @@ export default function MapPickerScreen() {
         latitude: center.latitude.toFixed(6),
         longitude: center.longitude.toFixed(6),
         distance: Math.round(radiusKm).toString(),
+
+        // Preserve cached sorting parameters
+        sortField: cachedSortField,
+        sortOrder: cachedSortOrder,
       },
     });
   };
@@ -146,9 +153,9 @@ export default function MapPickerScreen() {
           onValueChange={setRadiusKm}
           minimumTrackTintColor="#ffd33d"
         />
-        
-        <TouchableOpacity 
-          style={styles.locationButton} 
+
+        <TouchableOpacity
+          style={styles.locationButton}
           onPress={requestLocationPermission}
           disabled={locationLoading}
         >
