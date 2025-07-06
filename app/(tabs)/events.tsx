@@ -164,32 +164,42 @@ export default function EventScreen() {
     const lng = parseFloat(currentLng);
 
     return [...eventList].sort((a, b) => {
-      let comparison = 0;
+      let primaryComparison = 0;
 
       switch (currentSortOption) {
         case 'date':
           const dateA = a.start_datetime ? new Date(a.start_datetime) : new Date(0);
           const dateB = b.start_datetime ? new Date(b.start_datetime) : new Date(0);
-          comparison = dateA.getTime() - dateB.getTime();
+          primaryComparison = dateA.getTime() - dateB.getTime();
           break;
         
         case 'distance':
           if (a.address?.latitude && a.address?.longitude && b.address?.latitude && b.address?.longitude) {
             const distA = calculateDistance(lat, lng, parseFloat(a.address.latitude), parseFloat(a.address.longitude));
             const distB = calculateDistance(lat, lng, parseFloat(b.address.latitude), parseFloat(b.address.longitude));
-            comparison = distA - distB;
+            primaryComparison = distA - distB;
           }
           break;
         
         case 'name':
-          comparison = a.name.localeCompare(b.name);
+          primaryComparison = a.name.localeCompare(b.name);
           break;
         
         default:
-          comparison = 0;
+          primaryComparison = 0;
       }
 
-      return currentSortOrder === 'asc' ? comparison : -comparison;
+      // Apply primary sort order
+      const orderedPrimaryComparison = currentSortOrder === 'asc' ? primaryComparison : -primaryComparison;
+
+      // If primary comparison is equal (or for non-name sorts), apply secondary alphabetical sort
+      if (orderedPrimaryComparison === 0 || currentSortOption !== 'name') {
+        const secondaryComparison = a.name.localeCompare(b.name);
+        // For secondary sort, we always use ascending order unless primary sort is name
+        return orderedPrimaryComparison === 0 ? secondaryComparison : orderedPrimaryComparison;
+      }
+
+      return orderedPrimaryComparison;
     });
   }, [sortOption, sortOrder]);
 
