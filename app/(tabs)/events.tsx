@@ -155,8 +155,13 @@ export default function EventScreen() {
         }
 
         const json = await response.json();
-        setEvents(json.activities || []);
+        const sortedEvents = (json.activities || []).sort((a, b) => {
+          const dateA = a.start_datetime ? new Date(a.start_datetime) : new Date(0);
+          const dateB = b.start_datetime ? new Date(b.start_datetime) : new Date(0);
+          return dateA.getTime() - dateB.getTime();
+        });
 
+        setEvents(sortedEvents);
         await cacheLocation(lat, lng, dist);
       } catch (err) {
         setError('Failed to load events.');
