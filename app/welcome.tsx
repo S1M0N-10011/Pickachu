@@ -12,9 +12,9 @@ export default function WelcomeScreen() {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Welcome to CartigoTCG!</Text>
+      <Text style={styles.title}>Welcome Trainer!</Text>
       <TouchableOpacity style={styles.button} onPress={handleStart}>
-        <Text style={styles.buttonText}>Get started</Text>
+        <Text style={styles.buttonText}>Step into the Pokéworld</Text>
       </TouchableOpacity>
     </View>
   );
