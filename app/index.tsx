@@ -8,10 +8,9 @@ export default function InitialScreen() {
   useEffect(() => {
     async function check() {
       const hasSeenWelcome = await AsyncStorage.getItem('hasSeenWelcome');
+      router.replace('/welcome');
       if (hasSeenWelcome === 'false') { // temporarily inverted for testing, should be 'true'
-        router.replace('/(tabs)');
-      } else {
-        router.replace('/welcome');
+        router.push('/(tabs)');
       }
     }
     check();

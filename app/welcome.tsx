@@ -32,7 +32,7 @@ export default function WelcomeScreen() {
 
   const handleSkip = async () => {
     await AsyncStorage.setItem('hasSeenWelcome', 'true');
-    router.replace('/(tabs)');
+    router.push('/(tabs)');
   };
 
   return (
