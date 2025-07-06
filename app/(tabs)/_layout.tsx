@@ -47,7 +47,7 @@ export default function TabLayout() {
         borderRadius: 15,
         position: 'absolute' as const,
         marginHorizontal: isTablet ? 20 : 10,
-        marginBottom: isTablet ? 15 : 10,
+        marginBottom: isTablet ? 15 : 50,
       };
     }
   };

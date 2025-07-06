@@ -1,6 +1,13 @@
 import { Stack } from 'expo-router';
+import * as SystemUI from 'expo-system-ui';
+import { useEffect } from 'react';
 
 export default function RootLayout() {
+  useEffect(() => {
+    // Alleen op Android: navigation bar automatisch verbergen (immersive)
+    SystemUI.setNavigationBarVisibilityAsync && SystemUI.setNavigationBarVisibilityAsync('immersive');
+  }, []);
+
   return (
     <Stack
       screenOptions={{
