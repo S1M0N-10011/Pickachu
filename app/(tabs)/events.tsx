@@ -48,6 +48,7 @@ export default function EventScreen() {
 
   const hasFetchedRef = useRef(false);
   const prevParamsRef = useRef({ latitude: '', longitude: '', distance: '' });
+  const navigationInProgressRef = useRef(false); // Add this to prevent double navigation
 
   useEffect(() => {
     loadCachedLocation();
@@ -151,14 +152,21 @@ export default function EventScreen() {
     return R * c;
   };
 
-  const sortEvents = useCallback((eventList: any[], currentLat: string, currentLng: string) => {
+  // Updated sortEvents function to accept sort parameters directly
+  const sortEvents = useCallback((
+    eventList: any[], 
+    currentLat: string, 
+    currentLng: string, 
+    currentSortOption: 'date' | 'distance' | 'name' = sortOption,
+    currentSortOrder: 'asc' | 'desc' = sortOrder
+  ) => {
     const lat = parseFloat(currentLat);
     const lng = parseFloat(currentLng);
 
     return [...eventList].sort((a, b) => {
       let comparison = 0;
 
-      switch (sortOption) {
+      switch (currentSortOption) {
         case 'date':
           const dateA = a.start_datetime ? new Date(a.start_datetime) : new Date(0);
           const dateB = b.start_datetime ? new Date(b.start_datetime) : new Date(0);
@@ -181,7 +189,7 @@ export default function EventScreen() {
           comparison = 0;
       }
 
-      return sortOrder === 'asc' ? comparison : -comparison;
+      return currentSortOrder === 'asc' ? comparison : -comparison;
     });
   }, [sortOption, sortOrder]);
 
@@ -190,7 +198,9 @@ export default function EventScreen() {
       isRefresh = false,
       customLat?: string,
       customLng?: string,
-      customDist?: string
+      customDist?: string,
+      customSortOption?: 'date' | 'distance' | 'name',
+      customSortOrder?: 'asc' | 'desc'
     ) => {
       let lat = customLat || latitude;
       let lng = customLng || longitude;
@@ -236,7 +246,7 @@ export default function EventScreen() {
         }
 
         const json = await response.json();
-        const sortedEvents = sortEvents(json.activities || [], lat, lng);
+        const sortedEvents = sortEvents(json.activities || [], lat, lng, customSortOption, customSortOrder);
 
         setEvents(sortedEvents);
         await cacheLocation(lat, lng, dist);
@@ -261,9 +271,9 @@ export default function EventScreen() {
       setSortOrder(newSortOrder);
       cacheSort(newSortOption, newSortOrder);
       
-      // Re-sort existing events
+      // Re-sort existing events with the new sort parameters
       if (events.length > 0) {
-        const sortedEvents = sortEvents(events, latitude, longitude);
+        const sortedEvents = sortEvents(events, latitude, longitude, newSortOption, newSortOrder);
         setEvents(sortedEvents);
       }
     }
@@ -287,12 +297,16 @@ export default function EventScreen() {
         setSearch('');
       }
 
-      fetchEvents(false, lat, lng, dist);
+      // Pass the new sort parameters if they exist
+      const newSortOption = (params.sortOption as 'date' | 'distance' | 'name') || sortOption;
+      const newSortOrder = (params.sortOrder as 'asc' | 'desc') || sortOrder;
+      
+      fetchEvents(false, lat, lng, dist, newSortOption, newSortOrder);
 
       prevParamsRef.current = { latitude: lat, longitude: lng, distance: dist };
       hasFetchedRef.current = true;
     }
-  }, [params.latitude, params.longitude, params.distance, fetchEvents]);
+  }, [params.latitude, params.longitude, params.distance, params.sortOption, params.sortOrder, fetchEvents, sortOption, sortOrder]);
 
   const getAddress = (address) => {
     if (!address) return null;
@@ -313,34 +327,54 @@ export default function EventScreen() {
   );
 
   const handleLocationButtonPress = async () => {
-    Keyboard.dismiss();
-    const currentLocation = await getCurrentCachedLocation();
+    if (navigationInProgressRef.current) return; // Prevent double navigation
+    navigationInProgressRef.current = true;
+    
+    try {
+      Keyboard.dismiss();
+      const currentLocation = await getCurrentCachedLocation();
 
-    router.push({
-      pathname: '/map-picker',
-      params: {
-        initialLat: currentLocation.latitude,
-        initialLng: currentLocation.longitude,
-        initialRadius: currentLocation.distance,
-      },
-    });
+      router.push({
+        pathname: '/map-picker',
+        params: {
+          initialLat: currentLocation.latitude,
+          initialLng: currentLocation.longitude,
+          initialRadius: currentLocation.distance,
+        },
+      });
+    } finally {
+      // Reset the flag after a short delay
+      setTimeout(() => {
+        navigationInProgressRef.current = false;
+      }, 500);
+    }
   };
 
   const handleSortButtonPress = async () => {
-    Keyboard.dismiss();
-    const currentLocation = await getCurrentCachedLocation();
+    if (navigationInProgressRef.current) return; // Prevent double navigation
+    navigationInProgressRef.current = true;
+    
+    try {
+      Keyboard.dismiss();
+      const currentLocation = await getCurrentCachedLocation();
 
-    router.push({
-      pathname: '/sort-picker',
-      params: {
-        currentOption: sortOption,
-        currentOrder: sortOrder,
-        // Pass location params for navigation back
-        latitude: currentLocation.latitude,
-        longitude: currentLocation.longitude,
-        distance: currentLocation.distance,
-      },
-    });
+      router.push({
+        pathname: '/sort-picker',
+        params: {
+          currentOption: sortOption,
+          currentOrder: sortOrder,
+          // Pass location params for navigation back
+          latitude: currentLocation.latitude,
+          longitude: currentLocation.longitude,
+          distance: currentLocation.distance,
+        },
+      });
+    } finally {
+      // Reset the flag after a short delay
+      setTimeout(() => {
+        navigationInProgressRef.current = false;
+      }, 500);
+    }
   };
 
   const getSortButtonIcon = () => {
