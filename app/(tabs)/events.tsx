@@ -4,8 +4,10 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Dimensions,
   FlatList,
   Keyboard,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -42,13 +44,12 @@ export default function EventScreen() {
   const [longitude, setLongitude] = useState('');
   const [distance, setDistance] = useState('');
   
-  // Sort state
   const [sortOption, setSortOption] = useState<'date' | 'distance' | 'name'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
   const hasFetchedRef = useRef(false);
   const prevParamsRef = useRef({ latitude: '', longitude: '', distance: '' });
-  const navigationInProgressRef = useRef(false); // Add this to prevent double navigation
+  const navigationInProgressRef = useRef(false);
 
   useEffect(() => {
     loadCachedLocation();
@@ -141,7 +142,7 @@ export default function EventScreen() {
   }, [latitude, longitude, distance]);
 
   const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const R = 6371; // Earth's radius in kilometers
+    const R = 6371;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
     const a = 
@@ -152,7 +153,6 @@ export default function EventScreen() {
     return R * c;
   };
 
-  // Updated sortEvents function to accept sort parameters directly
   const sortEvents = useCallback((
     eventList: any[], 
     currentLat: string, 
@@ -261,7 +261,6 @@ export default function EventScreen() {
     [latitude, longitude, distance, getCurrentCachedLocation, sortEvents]
   );
 
-  // Handle sort parameter changes
   useEffect(() => {
     const newSortOption = (params.sortOption as 'date' | 'distance' | 'name') || sortOption;
     const newSortOrder = (params.sortOrder as 'asc' | 'desc') || sortOrder;
@@ -271,7 +270,6 @@ export default function EventScreen() {
       setSortOrder(newSortOrder);
       cacheSort(newSortOption, newSortOrder);
       
-      // Re-sort existing events with the new sort parameters
       if (events.length > 0) {
         const sortedEvents = sortEvents(events, latitude, longitude, newSortOption, newSortOrder);
         setEvents(sortedEvents);
@@ -297,7 +295,6 @@ export default function EventScreen() {
         setSearch('');
       }
 
-      // Pass the new sort parameters if they exist
       const newSortOption = (params.sortOption as 'date' | 'distance' | 'name') || sortOption;
       const newSortOrder = (params.sortOrder as 'asc' | 'desc') || sortOrder;
       
@@ -327,7 +324,7 @@ export default function EventScreen() {
   );
 
   const handleLocationButtonPress = async () => {
-    if (navigationInProgressRef.current) return; // Prevent double navigation
+    if (navigationInProgressRef.current) return;
     navigationInProgressRef.current = true;
     
     try {
@@ -343,7 +340,6 @@ export default function EventScreen() {
         },
       });
     } finally {
-      // Reset the flag after a short delay
       setTimeout(() => {
         navigationInProgressRef.current = false;
       }, 500);
@@ -351,7 +347,7 @@ export default function EventScreen() {
   };
 
   const handleSortButtonPress = async () => {
-    if (navigationInProgressRef.current) return; // Prevent double navigation
+    if (navigationInProgressRef.current) return;
     navigationInProgressRef.current = true;
     
     try {
@@ -363,14 +359,12 @@ export default function EventScreen() {
         params: {
           currentOption: sortOption,
           currentOrder: sortOrder,
-          // Pass location params for navigation back
           latitude: currentLocation.latitude,
           longitude: currentLocation.longitude,
           distance: currentLocation.distance,
         },
       });
     } finally {
-      // Reset the flag after a short delay
       setTimeout(() => {
         navigationInProgressRef.current = false;
       }, 500);
@@ -474,27 +468,38 @@ export default function EventScreen() {
   );
 }
 
+const { width, height } = Dimensions.get('window');
+const isTablet = width >= 768 || height >= 1024;
+
+const getBottomPadding = () => {
+  if (Platform.OS === 'ios') {
+    return isTablet ? 65 : 90;
+  }
+  return isTablet ? 55 : 70;
+};
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#1f2226',
-    padding: 16,
-    paddingBottom: 80,
+    padding: isTablet ? 24 : 16,
+    paddingBottom: getBottomPadding(),
   },
   searchRow: {
     flexDirection: 'row',
-    marginBottom: 16,
+    marginBottom: isTablet ? 20 : 16,
   },
   searchInput: {
-    height: 40,
+    height: isTablet ? 48 : 40,
     backgroundColor: '#2a2e33',
     borderRadius: 8,
-    paddingHorizontal: 12,
+    paddingHorizontal: isTablet ? 16 : 12,
     color: '#fff',
+    fontSize: isTablet ? 16 : 14,
   },
   searchButton: {
     marginLeft: 12,
-    padding: 8,
+    padding: isTablet ? 12 : 8,
     backgroundColor: '#2a2e33',
     borderRadius: 8,
     justifyContent: 'center',
@@ -502,7 +507,7 @@ const styles = StyleSheet.create({
   },
   locationButton: {
     marginLeft: 12,
-    padding: 8,
+    padding: isTablet ? 12 : 8,
     backgroundColor: '#2a2e33',
     borderRadius: 8,
     justifyContent: 'center',
@@ -510,27 +515,28 @@ const styles = StyleSheet.create({
   },
   eventContainer: {
     backgroundColor: '#2a2e33',
-    padding: 12,
-    marginBottom: 12,
+    padding: isTablet ? 16 : 12,
+    marginBottom: isTablet ? 16 : 12,
     borderRadius: 8,
   },
   eventName: {
     color: '#fff',
-    fontSize: 18,
+    fontSize: isTablet ? 20 : 18,
     fontWeight: '700',
   },
   eventDate: {
     color: '#ccc',
     marginTop: 4,
+    fontSize: isTablet ? 16 : 14,
   },
   eventAddress: {
     color: '#aaa',
     marginTop: 2,
-    fontSize: 12,
+    fontSize: isTablet ? 14 : 12,
   },
   messageText: {
     color: '#888',
-    fontSize: 18,
+    fontSize: isTablet ? 20 : 18,
     textAlign: 'center',
     marginTop: 10,
     alignSelf: 'center',
@@ -543,6 +549,6 @@ const styles = StyleSheet.create({
   loadingText: {
     color: '#fff',
     marginTop: 12,
-    fontSize: 16,
+    fontSize: isTablet ? 18 : 16,
   },
 });
