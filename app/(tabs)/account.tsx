@@ -12,8 +12,9 @@ import { Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'reac
 import { auth } from '../../firebase';
 
 export default function AccountScreen() {
+  const isDev = true;
   const [email, setEmail] = useState('');
-  const [userEmail, setUserEmail] = useState(null);
+  const [userEmail, setUserEmail] = useState(isDev ? 'dev@example.com' : null);
 
   const actionCodeSettings = {
     url: "https://auth.cartigotcg.nl/emailSignIn",
@@ -21,6 +22,8 @@ export default function AccountScreen() {
   };
 
   useEffect(() => {
+    if (isDev) return;
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user && user.email) {
         setUserEmail(user.email);
@@ -32,6 +35,8 @@ export default function AccountScreen() {
   }, []);
 
   useEffect(() => {
+    if (isDev) return;
+
     const handleDeepLink = async ({ url }) => {
       if (isSignInWithEmailLink(auth, url)) {
         let savedEmail = await SecureStore.getItemAsync('emailForSignIn');
@@ -83,7 +88,9 @@ export default function AccountScreen() {
   const sendLink = async () => {
     if (!email) return Alert.alert('Missing email', 'Please enter your email');
     try {
-      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+      if (!isDev) {
+        await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+      }
       await SecureStore.setItemAsync('emailForSignIn', email);
       Alert.alert('Check your email', 'Sign-in link sent!');
     } catch (error) {
@@ -93,7 +100,9 @@ export default function AccountScreen() {
 
   const handleSignOut = async () => {
     try {
-      await signOut(auth);
+      if (!isDev) {
+        await signOut(auth);
+      }
       setUserEmail(null);
       Alert.alert('Signed out', 'You have been signed out.');
     } catch (error) {
