@@ -247,12 +247,6 @@ export default function EventScreen() {
         </TouchableOpacity>
       </View>
 
-      {error && (
-        <TouchableOpacity onPress={() => fetchEvents(false)}>
-          <Text style={styles.errorText}>{error} Tap to retry.</Text>
-        </TouchableOpacity>
-      )}
-
       {loading && events.length === 0 ? (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color="#fff" />
@@ -296,11 +290,25 @@ export default function EventScreen() {
             );
           }}
           ListEmptyComponent={
-            <Text style={styles.noResults}>No events found.</Text>
+            <TouchableOpacity
+              onPress={() => {
+                if (error) {
+                  fetchEvents(false);
+                }
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={error ? styles.errorText : styles.noResults}>
+                {error ? `${error} Tap to retry.` : 'No events found.'}
+              </Text>
+            </TouchableOpacity>
           }
           refreshing={refreshing}
           onRefresh={() => fetchEvents(true)}
-          contentContainerStyle={{ paddingBottom: 80 }}
+          contentContainerStyle={{
+            flexGrow: 1,
+            paddingBottom: filteredEvents.length === 0 ? 0 : 80,
+          }}
           onScrollBeginDrag={() => Keyboard.dismiss()}
         />
       )}
@@ -363,15 +371,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   errorText: {
-    color: 'red',
-    fontSize: 16,
+    color: '#red',
+    fontSize: 18,
     textAlign: 'center',
-    marginBottom: 12,
+    marginTop: 10,
+    alignSelf: 'center',
   },
   noResults: {
     color: '#888',
     fontSize: 18,
-    marginTop: 20,
+    textAlign: 'center',
+    marginTop: 10,
     alignSelf: 'center',
   },
   loadingContainer: {
