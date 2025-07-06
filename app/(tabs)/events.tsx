@@ -298,7 +298,7 @@ export default function EventScreen() {
               }}
               activeOpacity={0.7}
             >
-              <Text style={error ? styles.errorText : styles.noResults}>
+              <Text style={styles.messageText}>
                 {error ? `${error} Tap to retry.` : 'No events found.'}
               </Text>
             </TouchableOpacity>
@@ -370,14 +370,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontSize: 12,
   },
-  errorText: {
-    color: '#red',
-    fontSize: 18,
-    textAlign: 'center',
-    marginTop: 10,
-    alignSelf: 'center',
-  },
-  noResults: {
+  messageText: {
     color: '#888',
     fontSize: 18,
     textAlign: 'center',
