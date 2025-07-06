@@ -1,9 +1,30 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Asset } from 'expo-asset';
 import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+
+const welcomeImage = require('../assets/images/welcome-background.png');
 
 export default function WelcomeScreen() {
   const router = useRouter();
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    async function loadAssets() {
+      await Asset.fromModule(welcomeImage).downloadAsync();
+      setIsReady(true);
+    }
+    loadAssets();
+  }, []);
+
+  if (!isReady) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center' }]}>
+        <ActivityIndicator size="large" color="#ffd33d" />
+      </View>
+    );
+  }
 
   const handleSignInUp = () => {
     router.push('/account');
@@ -18,18 +39,14 @@ export default function WelcomeScreen() {
     <View style={styles.container}>
       <Text style={styles.title}>Welcome Trainer!</Text>
 
-      <Image
-        source={require('../assets/images/welcome-background.png')}
-        style={styles.image}
-        resizeMode="contain"
-      />
+      <Image source={welcomeImage} style={styles.image} resizeMode="contain" />
 
       <TouchableOpacity style={styles.primaryButton} onPress={handleSignInUp}>
-        <Text style={styles.primaryButtonText}>Sign up for your journey</Text>
+        <Text style={styles.primaryButtonText}>Sign Up for Your Journey</Text>
       </TouchableOpacity>
 
       <TouchableOpacity style={styles.skipButton} onPress={handleSkip}>
-        <Text style={styles.skipButtonText}>Step into the Pokéworld</Text>
+        <Text style={styles.skipButtonText}>Step Into the Pokéworld</Text>
       </TouchableOpacity>
     </View>
   );
