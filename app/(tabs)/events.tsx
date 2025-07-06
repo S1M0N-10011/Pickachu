@@ -17,6 +17,7 @@ import {
 
 const LOCATION_CACHE_KEY = 'tcg_app_location_cache';
 const SORT_CACHE_KEY = 'tcg_app_sort_cache';
+const EVENTS_CACHE_KEY = 'tcg_app_events_cache';
 
 interface LocationCache {
   latitude: string;
@@ -43,7 +44,7 @@ export default function EventScreen() {
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
   const [distance, setDistance] = useState('');
-  
+
   const [sortOption, setSortOption] = useState<'date' | 'distance' | 'name'>('date');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
@@ -51,10 +52,27 @@ export default function EventScreen() {
   const prevParamsRef = useRef({ latitude: '', longitude: '', distance: '' });
   const navigationInProgressRef = useRef(false);
 
-  useEffect(() => {
-    loadCachedLocation();
-    loadCachedSort();
-  }, []);
+  const cacheEvents = async (eventsToCache: any[]) => {
+    try {
+      await AsyncStorage.setItem(EVENTS_CACHE_KEY, JSON.stringify(eventsToCache));
+      console.log('Cached events successfully');
+    } catch (error) {
+      console.error('Error caching events:', error);
+    }
+  };
+
+  const loadCachedEvents = async () => {
+    try {
+      const cachedData = await AsyncStorage.getItem(EVENTS_CACHE_KEY);
+      if (cachedData) {
+        const parsedEvents = JSON.parse(cachedData);
+        setEvents(parsedEvents);
+        console.log('Loaded cached events');
+      }
+    } catch (error) {
+      console.error('Error loading cached events:', error);
+    }
+  };
 
   const loadCachedLocation = async () => {
     try {
@@ -69,11 +87,9 @@ export default function EventScreen() {
         const defaultLat = '52.1326';
         const defaultLng = '5.2913';
         const defaultDist = '50';
-
         setLatitude(defaultLat);
         setLongitude(defaultLng);
         setDistance(defaultDist);
-
         await cacheLocation(defaultLat, defaultLng, defaultDist);
         console.log('No cached location, using and caching default coordinates');
       }
@@ -145,21 +161,14 @@ export default function EventScreen() {
     const R = 6371;
     const dLat = (lat2 - lat1) * Math.PI / 180;
     const dLon = (lon2 - lon1) * Math.PI / 180;
-    const a = 
-      Math.sin(dLat/2) * Math.sin(dLat/2) +
-      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const a = Math.sin(dLat/2)**2 +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+              Math.sin(dLon/2)**2;
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
     return R * c;
   };
 
-  const sortEvents = useCallback((
-    eventList: any[], 
-    currentLat: string, 
-    currentLng: string, 
-    currentSortOption: 'date' | 'distance' | 'name' = sortOption,
-    currentSortOrder: 'asc' | 'desc' = sortOrder
-  ) => {
+  const sortEvents = useCallback((eventList: any[], currentLat: string, currentLng: string, currentSortOption = sortOption, currentSortOrder = sortOrder) => {
     const lat = parseFloat(currentLat);
     const lng = parseFloat(currentLng);
 
@@ -172,7 +181,6 @@ export default function EventScreen() {
           const dateB = b.start_datetime ? new Date(b.start_datetime) : new Date(0);
           primaryComparison = dateA.getTime() - dateB.getTime();
           break;
-        
         case 'distance':
           if (a.address?.latitude && a.address?.longitude && b.address?.latitude && b.address?.longitude) {
             const distA = calculateDistance(lat, lng, parseFloat(a.address.latitude), parseFloat(a.address.longitude));
@@ -180,22 +188,15 @@ export default function EventScreen() {
             primaryComparison = distA - distB;
           }
           break;
-        
         case 'name':
           primaryComparison = a.name.localeCompare(b.name);
           break;
-        
-        default:
-          primaryComparison = 0;
       }
 
-      // Apply primary sort order
       const orderedPrimaryComparison = currentSortOrder === 'asc' ? primaryComparison : -primaryComparison;
 
-      // If primary comparison is equal (or for non-name sorts), apply secondary alphabetical sort
       if (orderedPrimaryComparison === 0 || currentSortOption !== 'name') {
         const secondaryComparison = a.name.localeCompare(b.name);
-        // For secondary sort, we always use ascending order unless primary sort is name
         return orderedPrimaryComparison === 0 ? secondaryComparison : orderedPrimaryComparison;
       }
 
@@ -203,73 +204,60 @@ export default function EventScreen() {
     });
   }, [sortOption, sortOrder]);
 
-  const fetchEvents = useCallback(
-    async (
-      isRefresh = false,
-      customLat?: string,
-      customLng?: string,
-      customDist?: string,
-      customSortOption?: 'date' | 'distance' | 'name',
-      customSortOrder?: 'asc' | 'desc'
-    ) => {
-      let lat = customLat || latitude;
-      let lng = customLng || longitude;
-      let dist = customDist || distance;
+  const fetchEvents = useCallback(async (isRefresh = false, customLat?: string, customLng?: string, customDist?: string, customSortOption?: 'date' | 'distance' | 'name', customSortOrder?: 'asc' | 'desc') => {
+    let lat = customLat || latitude;
+    let lng = customLng || longitude;
+    let dist = customDist || distance;
 
-      if (isRefresh && !customLat && !customLng && !customDist) {
-        const cachedLocation = await getCurrentCachedLocation();
-        lat = cachedLocation.latitude;
-        lng = cachedLocation.longitude;
-        dist = cachedLocation.distance;
+    if (isRefresh && !customLat && !customLng && !customDist) {
+      const cachedLocation = await getCurrentCachedLocation();
+      lat = cachedLocation.latitude;
+      lng = cachedLocation.longitude;
+      dist = cachedLocation.distance;
+      if (lat !== latitude || lng !== longitude || dist !== distance) {
+        setLatitude(lat);
+        setLongitude(lng);
+        setDistance(dist);
+      }
+    }
 
-        if (lat !== latitude || lng !== longitude || dist !== distance) {
-          setLatitude(lat);
-          setLongitude(lng);
-          setDistance(dist);
-        }
+    if (!lat || !lng || !dist) return;
+
+    setError(null);
+    if (!isRefresh) setLoading(true);
+    else setRefreshing(true);
+
+    try {
+      const distMiles = Math.round(parseFloat(dist) / 1.60934);
+      const url = `https://op-core.pokemon.com/api/v2/event_locator/search?latitude=${lat}&longitude=${lng}&distance=${distMiles}`;
+      const response = await fetch(url);
+      const contentType = response.headers.get('content-type');
+
+      if (!response.ok || !contentType?.includes('application/json')) {
+        throw new Error(`Failed to fetch or invalid content type`);
       }
 
-      if (!lat || !lng || !dist) {
-        return;
-      }
+      const json = await response.json();
+      const sortedEvents = sortEvents(json.activities || [], lat, lng, customSortOption, customSortOrder);
+      setEvents(sortedEvents);
 
-      setError(null);
-      if (!isRefresh) {
-        setEvents([]);
-        setLoading(true);
-      } else {
-        setRefreshing(true);
-      }
+      await cacheLocation(lat, lng, dist);
+      await cacheEvents(sortedEvents);
 
-      try {
-        const distMiles = Math.round(parseFloat(dist) / 1.60934);
-        const url = `https://op-core.pokemon.com/api/v2/event_locator/search?latitude=${lat}&longitude=${lng}&distance=${distMiles}`;
-        const response = await fetch(url);
-        const contentType = response.headers.get('content-type');
+    } catch (err) {
+      setError('Failed to load events.');
+      console.error('Event fetch error:', err.message);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  }, [latitude, longitude, distance, getCurrentCachedLocation, sortEvents]);
 
-        if (!response.ok) {
-          throw new Error(`HTTP error ${response.status}`);
-        }
-
-        if (!contentType || !contentType.includes('application/json')) {
-          throw new Error(`Unexpected content-type: ${contentType}`);
-        }
-
-        const json = await response.json();
-        const sortedEvents = sortEvents(json.activities || [], lat, lng, customSortOption, customSortOrder);
-
-        setEvents(sortedEvents);
-        await cacheLocation(lat, lng, dist);
-      } catch (err) {
-        setError('Failed to load events.');
-        console.error('Event fetch error:', err.message);
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    [latitude, longitude, distance, getCurrentCachedLocation, sortEvents]
-  );
+  useEffect(() => {
+    loadCachedLocation();
+    loadCachedSort();
+    loadCachedEvents();
+  }, []);
 
   useEffect(() => {
     const newSortOption = (params.sortOption as 'date' | 'distance' | 'name') || sortOption;
@@ -279,7 +267,6 @@ export default function EventScreen() {
       setSortOption(newSortOption);
       setSortOrder(newSortOrder);
       cacheSort(newSortOption, newSortOrder);
-      
       if (events.length > 0) {
         const sortedEvents = sortEvents(events, latitude, longitude, newSortOption, newSortOrder);
         setEvents(sortedEvents);
@@ -293,23 +280,16 @@ export default function EventScreen() {
     const dist = (params.distance as string) ?? distance;
 
     const prev = prevParamsRef.current;
-    const hasChanged =
-      lat !== prev.latitude || lng !== prev.longitude || dist !== prev.distance;
+    const hasChanged = lat !== prev.latitude || lng !== prev.longitude || dist !== prev.distance;
 
     if (hasChanged || !hasFetchedRef.current) {
       setLatitude(lat);
       setLongitude(lng);
       setDistance(dist);
-
-      if (hasChanged && hasFetchedRef.current) {
-        setSearch('');
-      }
-
+      if (hasChanged && hasFetchedRef.current) setSearch('');
       const newSortOption = (params.sortOption as 'date' | 'distance' | 'name') || sortOption;
       const newSortOrder = (params.sortOrder as 'asc' | 'desc') || sortOrder;
-      
       fetchEvents(false, lat, lng, dist, newSortOption, newSortOrder);
-
       prevParamsRef.current = { latitude: lat, longitude: lng, distance: dist };
       hasFetchedRef.current = true;
     }
@@ -336,11 +316,9 @@ export default function EventScreen() {
   const handleLocationButtonPress = async () => {
     if (navigationInProgressRef.current) return;
     navigationInProgressRef.current = true;
-    
     try {
       Keyboard.dismiss();
       const currentLocation = await getCurrentCachedLocation();
-
       router.push({
         pathname: '/map-picker',
         params: {
@@ -359,11 +337,9 @@ export default function EventScreen() {
   const handleSortButtonPress = async () => {
     if (navigationInProgressRef.current) return;
     navigationInProgressRef.current = true;
-    
     try {
       Keyboard.dismiss();
       const currentLocation = await getCurrentCachedLocation();
-
       router.push({
         pathname: '/sort-picker',
         params: {
@@ -381,9 +357,7 @@ export default function EventScreen() {
     }
   };
 
-  const getSortButtonIcon = () => {
-    return 'sliders';
-  };
+  const getSortButtonIcon = () => 'sliders';
 
   return (
     <View style={styles.container}>
@@ -395,16 +369,10 @@ export default function EventScreen() {
           value={search}
           onChangeText={setSearch}
         />
-        <TouchableOpacity 
-          style={styles.searchButton}
-          onPress={handleSortButtonPress}
-        >
+        <TouchableOpacity style={styles.searchButton} onPress={handleSortButtonPress}>
           <Feather name={getSortButtonIcon()} size={24} color="#ffd33d" />
         </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.locationButton}
-          onPress={handleLocationButtonPress}
-        >
+        <TouchableOpacity style={styles.locationButton} onPress={handleLocationButtonPress}>
           <Feather name="map-pin" size={24} color="#ffd33d" />
         </TouchableOpacity>
       </View>
@@ -445,21 +413,12 @@ export default function EventScreen() {
               >
                 <Text style={styles.eventName}>{item.name}</Text>
                 <Text style={styles.eventDate}>{date}</Text>
-                {addressText && (
-                  <Text style={styles.eventAddress}>{addressText}</Text>
-                )}
+                {addressText && <Text style={styles.eventAddress}>{addressText}</Text>}
               </TouchableOpacity>
             );
           }}
           ListEmptyComponent={
-            <TouchableOpacity
-              onPress={() => {
-                if (error) {
-                  fetchEvents(false);
-                }
-              }}
-              activeOpacity={0.7}
-            >
+            <TouchableOpacity onPress={() => error && fetchEvents(false)} activeOpacity={0.7}>
               <Text style={styles.messageText}>
                 {error ? `${error} Tap to retry.` : 'No events found.'}
               </Text>
@@ -482,9 +441,7 @@ const { width, height } = Dimensions.get('window');
 const isTablet = width >= 768 || height >= 1024;
 
 const getBottomPadding = () => {
-  if (Platform.OS === 'ios') {
-    return isTablet ? 65 : 90;
-  }
+  if (Platform.OS === 'ios') return isTablet ? 65 : 90;
   return isTablet ? 55 : 70;
 };
 
@@ -544,21 +501,20 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontSize: isTablet ? 14 : 12,
   },
-  messageText: {
-    color: '#888',
-    fontSize: isTablet ? 20 : 18,
-    textAlign: 'center',
-    marginTop: 10,
-    alignSelf: 'center',
-  },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
   },
-  loadingText: {
+    loadingText: {
+    marginTop: 16,
     color: '#fff',
-    marginTop: 12,
-    fontSize: isTablet ? 18 : 16,
+    fontSize: 16,
+  },
+    messageText: {
+    marginTop: 16,
+    color: '#aaa',
+    fontSize: 16,
+    textAlign: 'center',
   },
 });

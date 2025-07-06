@@ -38,7 +38,6 @@ export default function SortPickerScreen() {
       params: {
         sortOption: selectedOption,
         sortOrder: selectedOrder,
-        // Pass through any existing location params
         latitude: params.latitude,
         longitude: params.longitude,
         distance: params.distance,

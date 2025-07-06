@@ -20,7 +20,6 @@ export default function MapPickerScreen() {
   const initialLng = parseFloat(params.initialLng as string) || 5.2913;
   const initialRadiusKm = parseFloat(params.initialRadius as string) || 100;
 
-  // Cached sorting params from router params — default to your preferred values
   const cachedSortField = (params.sortField as string) || 'date';
   const cachedSortOrder = (params.sortOrder as string) || 'asc';
 
@@ -112,8 +111,6 @@ export default function MapPickerScreen() {
         latitude: center.latitude.toFixed(6),
         longitude: center.longitude.toFixed(6),
         distance: Math.round(radiusKm).toString(),
-
-        // Preserve cached sorting parameters
         sortField: cachedSortField,
         sortOrder: cachedSortOrder,
       },
