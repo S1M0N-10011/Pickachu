@@ -1,11 +1,28 @@
+import * as NavigationBar from 'expo-navigation-bar';
 import { Stack } from 'expo-router';
-import * as SystemUI from 'expo-system-ui';
 import { useEffect } from 'react';
+import { AppState, Platform } from 'react-native';
 
 export default function RootLayout() {
   useEffect(() => {
     // Alleen op Android: navigation bar automatisch verbergen (immersive)
-    SystemUI.setNavigationBarVisibilityAsync && SystemUI.setNavigationBarVisibilityAsync('immersive');
+    if (Platform.OS === 'android') {
+      const hideNavBar = async () => {
+        try {
+          await NavigationBar.setVisibilityAsync('hidden');
+          await NavigationBar.setBehaviorAsync('overlay-swipe');
+        } catch (e) {
+          // fail silently
+        }
+      };
+      hideNavBar();
+      const subscription = AppState.addEventListener('change', (state) => {
+        if (state === 'active') {
+          hideNavBar();
+        }
+      });
+      return () => subscription.remove();
+    }
   }, []);
 
   return (
